@@ -23,7 +23,24 @@ library(stringr)
 
 #import data
 ```{r}
-brfss_raw <- read_xpt("C:/Users/crodg/OneDrive/Desktop/MS Data Science/DSE6311 Capstone/Dataset/LLCP2023.XPT")
+# Code below imports the data to any person's machine
+if (!dir.exists("C:/temp")) {
+    dir.create("C:/temp")
+} # If statement creates temp folder on machine
+
+zipUrl <- "https://www.cdc.gov/brfss/annual_data/2023/files/LLCP2023XPT.zip"
+zipPath <- path.expand("C:/temp/LLCP2023XPT.zip")
+download.file(zipUrl, destfile = zipPath) #Download the file
+
+extractPath <- "C:/temp"
+unzip(zipPath, exdir = extractPath)
+list.files(extractPath) # Extract, unzip, and make sure file exists
+
+sasFile <- file.path(extractPath, "LLCP2023.XPT") 
+brfss_raw <- read_xpt(sasFile) # Read file into R after specifying file variable
+
+head(brfss_raw)
+
 ```
 
 #column names
@@ -113,7 +130,7 @@ brfss_subset <- brfss_subset %>%
 ```
 
 ```{r}
-brfss_subset <- brfss_subset %>%
+brfss_subset <- brfss_subset %>% #SS 4.2 - Is this needed?
   mutate(
     ment14d = ifelse(ment14d == 88, 0, ment14d),
     ment14d = na_if(ment14d, 77),
@@ -143,16 +160,16 @@ brfss_subset <- brfss_subset %>%
 ```
 
 ```{r}
-brfss_subset <- brfss_subset %>%
+brfss_subset <- brfss_subset %>% 
   mutate(
     race = as.numeric(race),
-    race = na_if(race, 77),
-    race = na_if(race, 99)
+    race = na_if(race, 77), #Do any values meet this criteria?
+    race = na_if(race, 99) #Do any values meet this criteria?
   )
 ```
 
 ```{r}
-brfss_subset <- brfss_subset %>%
+brfss_subset <- brfss_subset %>% # SS 4.2 - Duplicate?
   mutate(
     race = as.numeric(race),
     race = na_if(race, 77),
@@ -194,7 +211,7 @@ brfss_subset <- brfss_subset %>%
 
 #check conversion
 ```{r}
-table(brfss_subset$hlthpl1, useNA = "ifany")
+table(brfss_subset$hlthpl1, useNA = "ifany") #Noting class imbalance here, this is good!
 
 ```
 ```{r}
@@ -260,7 +277,7 @@ table(brfss_subset$employ1, useNA = "ifany")
 ```
 #summary table
 ```{r}
-brfss_subset %>%
+brfss_subset %>% #Are we excluding any variables in the select statement. Otherwise, it may be redunant?
   select(ment14d, hlthpl1, persdoc3, medcost1, checkup1, primins1,
          addepev3, acedeprs, decide, exerany2, pa150r4, sex, age80,
          race, educa, employ1, marital, incomg1, numadult) %>%
@@ -281,6 +298,23 @@ brfss_subset %>%
          employ1, marital, incomg1, numadult, hlthpl1) %>%
   tbl_summary(
     by = hlthpl1,
+    statistic = list(all_continuous() ~ "{mean} ({sd})",
+                     all_categorical() ~ "{n} ({p}%)"),
+    missing = "no"
+  ) %>%
+  add_p() %>%
+  bold_labels()
+
+```
+
+#stratified summary table _ment14d
+```{r}
+brfss_subset %>%
+  select(ment14d, persdoc3, medcost1, checkup1, primins1, addepev3,
+         acedeprs, decide, exerany2, pa150r4, sex, age80, race, educa,
+         employ1, marital, incomg1, numadult, hlthpl1) %>%
+  tbl_summary(
+    by = ment14d,
     statistic = list(all_continuous() ~ "{mean} ({sd})",
                      all_categorical() ~ "{n} ({p}%)"),
     missing = "no"
