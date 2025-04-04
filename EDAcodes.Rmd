@@ -18,6 +18,8 @@ library(naniar)
 library(corrplot)
 library(stats)
 library(stringr)
+library(car)
+
 ```
 
 
@@ -373,13 +375,33 @@ gg_miss_var(brfss_subset) +
 #collinearity check
 ```{r}
 brfss_numeric <- brfss_subset %>%
-  select(ment14d, age80, numadult) %>%
+  select(ment14d, age80, numadult) %>% # SS 4.2 - We may want to consider removing. Corrplots are ideally for continuous variables, and the response should probably be excluded.
   na.omit()
 
 cor_matrix <- cor(brfss_numeric)
 corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.8)
 
 ```
+# Basic Regression Analysis for response
+```{r}
+lmModel <- lm(ment14d ~ hlthpl1, data = brfss_subset)
+summary(lmModel)
+
+```
+# Basic Regression with a few more demographic variables
+```{r}
+lmModelAddition <- lm(ment14d ~ hlthpl1 + sex + incomg1, data = brfss_subset)
+summary(lmModelAddition)
+vif(lmModelAddition) # Low multicollinearity - this is good!
+```
+# Chi Squared Test for days since last checkup and medical cost
+```{r}
+tableChiSq <- table(brfss_subset$medcost1, brfss_subset$checkup1)
+
+chiResult <- chisq.test(tableChiSq)
+print(chiResult) # SS 4.2 - Indicates checkups related to medical costs. May want to examine further
+```
+
 #PCA biplot
 ```{r}
 pca_result <- prcomp(brfss_numeric, scale. = TRUE)
