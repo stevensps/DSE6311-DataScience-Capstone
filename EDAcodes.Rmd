@@ -139,12 +139,28 @@ brfss_subset <- brfss_subset %>%
 ```
 
 ```{r}
-brfss_subset <- brfss_subset %>% #SS 4.2 - Is this needed?
+brfss_subset <- brfss_subset %>%
   mutate(
-    ment14d = ifelse(ment14d == 88, 0, ment14d),
+    menthlth = brfss_raw$MENTHLTH,
+    ment14d = ifelse(menthlth == 88, 0, menthlth),
+    ment14d = na_if(ment14d, 9),
     ment14d = na_if(ment14d, 77),
-    ment14d = na_if(ment14d, 99)
+    ment14d = na_if(ment14d, 99),
+    ment14d_cat = case_when(
+      ment14d == 0 ~ "None",
+      ment14d >= 1 & ment14d <= 13 ~ "Occasional",
+      ment14d >= 14 ~ "Frequent",
+      TRUE ~ NA_character_
+    ),
+    ment14d_cat = factor(ment14d_cat, levels = c("None", "Occasional", "Frequent"))
   )
+
+```{r}
+brfss_subset <- brfss_subset %>%
+  mutate(
+    ment14d = na_if(ment14d, 9)
+  )
+```
 
 ```
 
@@ -153,6 +169,25 @@ brfss_subset <- brfss_subset %>% #SS 4.2 - Is this needed?
 table(brfss_subset$ment14d, useNA = "ifany")
 
 ```
+
+```{r}
+brfss_subset <- brfss_subset %>%
+  mutate(
+    ment14d_cat = case_when(
+      ment14d == 0 ~ "None",
+      ment14d >= 1 & ment14d <= 13 ~ "Occasional",
+      ment14d >= 14 ~ "Frequent",
+      TRUE ~ NA_character_
+    ),
+    ment14d_cat = factor(ment14d_cat, levels = c("None", "Occasional", "Frequent"))
+  )
+
+```
+
+```{r}
+table(brfss_subset$ment14d_cat, useNA = "ifany")
+```
+
 #check hlthpl1, race, incomg1
 ```{r}
 table(brfss_subset$hlthpl1, useNA = "ifany")
