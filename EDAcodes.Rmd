@@ -19,7 +19,8 @@ library(corrplot)
 library(stats)
 library(stringr)
 library(car)
-
+library(reshape2)
+library(viridis)
 ```
 
 
@@ -382,37 +383,85 @@ gg_miss_var(brfss_subset) +
 #collinearity check
 ```{r}
 brfss_numeric <- brfss_subset %>%
-  select(ment14d, age80, numadult) %>% # SS 4.2 - We may want to consider removing. Corrplots are ideally for continuous variables, and the response should probably be excluded.
+  select(ment14d, age80, numadult) %>% 
   na.omit()
-
 cor_matrix <- cor(brfss_numeric)
 corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.8)
 
 ```
-# Basic Regression Analysis for response
-```{r}
-lmModel <- lm(ment14d ~ hlthpl1, data = brfss_subset)
-summary(lmModel)
 
-```
-# Basic Regression with a few more demographic variables
+# Chi Squared iterative test
 ```{r}
-lmModelAddition <- lm(ment14d ~ hlthpl1 + sex + incomg1, data = brfss_subset)
-summary(lmModelAddition)
-vif(lmModelAddition) # Low multicollinearity - this is good!
-```
-# Chi Squared Test for days since last checkup and medical cost
-```{r}
-tableChiSq <- table(brfss_subset$medcost1, brfss_subset$checkup1)
+categoricalVars <- names(brfss_subset)[sapply(brfss_subset, is.factor)]
+chiResults <- list()
 
-chiResult <- chisq.test(tableChiSq)
-print(chiResult) # SS 4.2 - Indicates checkups related to medical costs. May want to examine further
+for (i in 1:(length(categoricalVars) - 1)) {
+  for (j in (i+1):length(categoricalVars)) {
+    var1 <- categoricalVars[i]
+    var2 <- categoricalVars[j] # SS - iterate through predictors to compare 2
+    
+    chiTest <- chisq.test(table(brfss_subset[[var1]], brfss_subset[[var2]]),
+                          simulate.p.value = TRUE)
+    chiResults[[paste(var1, var2, sep = "_vs_")]] <- # SS - run chi sq and list result
+      list(
+        variable1 = var1,
+        variable2 = var2,
+        p_value = chiTest$p.value,
+        statistic = chiTest$statistic
+      )
+  }
+}
+
+significantchiResult <- Filter(function(x) x$p_value < 0.05, chiResults)
+print(significantchiResult) #Only list statistically significant results
+```
+# Chi-squared heatmap and table
+```{r}
+chiResultsDF <- do.call(rbind, lapply(chiResults, function(x) {
+  data.frame(
+    variable1 = x$variable1,
+    variable2 = x$variable2,
+    statistic = x$statistic,
+    p_value = x$p_value
+  )
+}
+  )) # SS - do.call allows dynamic execution of another function
+
+significantheatResult <- subset(chiResultsDF, p_value < 0.05)
+
+heatmapData <- acast( #SS - acast to convert to matrix for heatmap
+  significantheatResult,
+  variable1 ~ variable2,
+  value.var =  "statistic",
+  fill = NA
+)
+
+ggplot(melt(heatmapData, na.rm = TRUE), aes(Var1, Var2, fill = value)) +
+  geom_tile() +
+  scale_fill_viridis_c(option = "plasma", name = "Chi-Square Stat") +
+  labs(title = "Heatmap of Iterative Chi-Square Stats",
+       x = "Variable 1",
+       y = "Variable 2") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) #SS - create heatmap
+```
+
+# Generate Focused table with top results
+```{r}
+topResultsHeat <- significantheatResult[order(-significantheatResult$statistic), ][1:10, ]
+print(topResultsHeat) #SS - Table to show only top 10 results based on statistic and p value less than 0.05
 ```
 
 #PCA biplot
 ```{r}
-pca_result <- prcomp(brfss_numeric, scale. = TRUE)
+pca_result <- prcomp(brfss_numeric, scale. = TRUE) #SS 4.4 - Typically I believe PCA is better for higher dimensionality data, and we may want to consider excluding the response. Becuase of this, we may want to do away from the PCA biplot
 biplot(pca_result, main = "PCA Biplot (Centered & Scaled Variables)")
+```
 
+# Pearson's Correlation to Measure Continuous Numeric
+```{r}
+cor.test(brfss_subset$age80, brfss_subset$numadult, method = "pearson")
+cor.test(brfss_subset$age80, brfss_subset$numadult, method = "spearman")
+# Spearman's measurement may provide a more realistic interpretation. Both tests yield statistically significant results.
 ```
 
