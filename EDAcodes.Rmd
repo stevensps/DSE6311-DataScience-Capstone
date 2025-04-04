@@ -154,14 +154,13 @@ brfss_subset <- brfss_subset %>%
     ),
     ment14d_cat = factor(ment14d_cat, levels = c("None", "Occasional", "Frequent"))
   )
+```
 
 ```{r}
 brfss_subset <- brfss_subset %>%
   mutate(
     ment14d = na_if(ment14d, 9)
   )
-```
-
 ```
 
 #check ment14d
