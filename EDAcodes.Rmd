@@ -32,16 +32,23 @@ if (!dir.exists("C:/temp")) {
 
 zipUrl <- "https://www.cdc.gov/brfss/annual_data/2023/files/LLCP2023XPT.zip"
 zipPath <- path.expand("C:/temp/LLCP2023XPT.zip")
-download.file(zipUrl, destfile = zipPath) #Download the file
+if (!file.exists(zipPath)) {
+    download.file(zipUrl, destfile = zipPath)
+} #Download the file
 
 extractPath <- "C:/temp"
-unzip(zipPath, exdir = extractPath)
+sasFile <- file.path(extractPath, "LLCP2023.XPT") 
+if (!file.exists(sasFile)) {
+    unzip(zipPath, exdir = extractPath)
+}
 list.files(extractPath) # Extract, unzip, and make sure file exists
 
-sasFile <- file.path(extractPath, "LLCP2023.XPT") 
-brfss_raw <- read_xpt(sasFile) # Read file into R after specifying file variable
-
-head(brfss_raw)
+if (file.exists(sasFile)) {
+    brfss_raw <- read_xpt(sasFile)
+    head(brfss_raw)
+} else {
+    message("File does not exist, check download or unzip process.")
+} # Read file into R after specifying file variable
 
 ```
 
@@ -220,7 +227,7 @@ table(brfss_subset$hlthpl1, useNA = "ifany") #Noting class imbalance here, this 
 table(brfss_subset$exerany2, useNA = "ifany")
 
 ```
-#convert mulit level categorical variables to labled factors
+#convert multi level categorical variables to labeled factors
 ```{r}
 brfss_subset <- brfss_subset %>%
   mutate(
@@ -247,7 +254,7 @@ brfss_subset <- brfss_subset %>%
 
 ```
 
-#remainging categorical variables
+#remaining categorical variables
 ```{r}
 brfss_subset <- brfss_subset %>%
   mutate(
