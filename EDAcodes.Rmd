@@ -434,3 +434,32 @@ ggplot(brfss_subset, aes(x = numadult)) +
   geom_histogram(binwidth = 1, fill = "purple", color = "white") +
   labs(title = "Number of Adults in Household", x = "Adults", y = "Count") +
   theme_minimal()
+
+################## additional histogram #####################################
+
+ggplot(brfss_subset, aes(x = ment14d)) +
+  geom_density(fill = "skyblue", alpha = 0.6) +
+  labs(title = "Density Plot of Poor Mental Health Days", x = "Days", y = "Density") +
+  theme_minimal()
+
+####################### descriptive statistics ##############################
+
+brfss_subset %>%
+  select(ment14d, age80, numadult) %>%
+  summarise(
+    count_ment14d = sum(!is.na(ment14d)),
+    mean_ment14d = mean(ment14d, na.rm = TRUE),
+    median_ment14d = median(ment14d, na.rm = TRUE),
+    sd_ment14d = sd(ment14d, na.rm = TRUE),
+    iqr_ment14d = IQR(ment14d, na.rm = TRUE),
+
+    mean_age80 = mean(age80, na.rm = TRUE),
+    median_age80 = median(age80, na.rm = TRUE),
+    sd_age80 = sd(age80, na.rm = TRUE),
+    iqr_age80 = IQR(age80, na.rm = TRUE),
+
+    mean_numadult = mean(numadult, na.rm = TRUE),
+    median_numadult = median(numadult, na.rm = TRUE),
+    sd_numadult = sd(numadult, na.rm = TRUE),
+    iqr_numadult = IQR(numadult, na.rm = TRUE)
+  )
