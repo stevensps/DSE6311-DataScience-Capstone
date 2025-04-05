@@ -21,6 +21,7 @@ library(stringr)
 library(car)
 library(reshape2)
 library(viridis)
+library(GGally)
 ```
 
 
@@ -484,6 +485,12 @@ ggplot(melt(heatmapData, na.rm = TRUE), aes(Var1, Var2, fill = value)) +
 ```{r}
 topResultsHeat <- significantheatResult[order(-significantheatResult$statistic), ][1:10, ]
 print(topResultsHeat) #SS - Table to show only top 10 results based on statistic and p value less than 0.05
+```
+
+# Generate ggpairs plots to examine collinearity and statistical significance
+```{r}
+continuous_vars <- brfss_subset[, c("age80", "numadult", "state", "menthlth", "checkup1")]
+ggpairs(continuous_vars)
 ```
 
 #PCA biplot
