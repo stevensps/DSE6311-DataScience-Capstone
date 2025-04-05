@@ -22,6 +22,7 @@ library(car)
 library(reshape2)
 library(viridis)
 library(GGally)
+library(scales)
 ```
 
 
@@ -365,6 +366,7 @@ brfss_subset %>%
 ggplot(brfss_subset, aes(x = race)) +
   geom_bar() +
   labs(title = "Race Distribution", x = "Race", y = "Count") +
+  scale_y_continuous(labels = comma) +  # clean y-axis labels
   theme_minimal()
 ```
 # Ment14d histogram
@@ -372,6 +374,7 @@ ggplot(brfss_subset, aes(x = race)) +
 ggplot(brfss_subset, aes(x = ment14d)) +
   geom_histogram(binwidth = 1, fill = "steelblue", color = "white") +
   labs(title = "Distribution of Poor Mental Health Days", x = "Days", y = "Count") +
+  scale_y_continuous(labels = comma) +  # clean y-axis labels
   theme_minimal()
 
 ```
@@ -388,6 +391,7 @@ ggplot(brfss_subset, aes(x = hlthpl1, y = ment14d)) +
 ggplot(brfss_subset, aes(x = exerany2)) +
   geom_bar() +
   labs(title = "Exercise Participation", x = "Exercised in Past 30 Days", y = "Count") +
+  scale_y_continuous(labels = comma) +  # clean y-axis labels
   theme_minimal()
 
 ```
@@ -399,12 +403,23 @@ ggplot(brfss_subset, aes(x = incomg1)) +
   theme_minimal()
 
 ```
+
 #missingness plot
 ```{r}
-gg_miss_var(brfss_subset) +
-  labs(title = "Missingness by Variable")
+# Summarize missingness
+missing_summary <- miss_var_summary(brfss_subset)
 
+# Plot manually
+ggplot(missing_summary, aes(x = reorder(variable, n_miss), y = n_miss)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Missingness by Variable",
+       x = "Variable",
+       y = "Number of Missing Values") +
+  scale_y_continuous(labels = comma) +
+  theme_minimal()
 ```
+
 #collinearity check
 ```{r}
 brfss_numeric <- brfss_subset %>%
