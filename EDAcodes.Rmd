@@ -381,11 +381,15 @@ ggplot(brfss_subset, aes(x = ment14d)) +
 ```
 # Ment14d by hlthpl1 boxplot
 ```{r}
-ggplot(brfss_subset, aes(x = ment14d)) +
-  geom_histogram(binwidth = 1, fill = "steelblue", color = "white") +
-  labs(title = "Distribution of Poor Mental Health Days", x = "Days", y = "Count") +
-  scale_y_continuous(labels = comma) +  # clean y-axis labels
-  theme_minimal()
+ggplot(brfss_subset, aes(x = hlthpl1, y = ment14d, fill = hlthpl1)) +
+  geom_boxplot() +
+  labs(title = "Poor Mental Health Days by Insurance Status",
+       x = "Insurance Status",
+       y = "Poor Mental Health Days (ment14d)") +
+  scale_y_continuous(labels = scales::comma) +  # Clean y-axis labels
+  scale_x_discrete(labels = c("No Insurance", "Has Insurance")) +  # Custom x-axis labels if needed
+  theme_minimal() +
+  theme(legend.position = "none")
 ```
 
 #exerany2 bar plot
