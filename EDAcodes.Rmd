@@ -24,6 +24,7 @@ library(viridis)
 library(GGally)
 library(knitr)
 library(kableExtra)
+library(scales)
 ```
 
 
@@ -367,46 +368,61 @@ brfss_subset %>%
 ggplot(brfss_subset, aes(x = race)) +
   geom_bar() +
   labs(title = "Race Distribution", x = "Race", y = "Count") +
-  theme_minimal()
+  scale_y_continuous(labels = comma) +  # clean y-axis labels
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # rotate x-axis labels
 ```
 # Ment14d histogram
 ```{r}
 ggplot(brfss_subset, aes(x = ment14d)) +
   geom_histogram(binwidth = 1, fill = "steelblue", color = "white") +
   labs(title = "Distribution of Poor Mental Health Days", x = "Days", y = "Count") +
+  scale_y_continuous(labels = comma) +  # clean y-axis labels
   theme_minimal()
 
 ```
 # Ment14d by hlthpl1 boxplot
 ```{r}
-ggplot(brfss_subset, aes(x = hlthpl1, y = ment14d)) +
-  geom_boxplot() +
-  labs(title = "Poor Mental Health Days by Insurance Status", x = "Insurance", y = "Mental Health Days") +
+ggplot(brfss_subset, aes(x = ment14d)) +
+  geom_histogram(binwidth = 1, fill = "steelblue", color = "white") +
+  labs(title = "Distribution of Poor Mental Health Days", x = "Days", y = "Count") +
+  scale_y_continuous(labels = comma) +  # clean y-axis labels
   theme_minimal()
-
 ```
+
 #exerany2 bar plot
 ```{r}
 ggplot(brfss_subset, aes(x = exerany2)) +
   geom_bar() +
   labs(title = "Exercise Participation", x = "Exercised in Past 30 Days", y = "Count") +
+  scale_y_continuous(labels = comma) +  # clean y-axis labels
   theme_minimal()
-
 ```
+
 #incomg1
 ```{r}
 ggplot(brfss_subset, aes(x = incomg1)) +
   geom_bar() +
   labs(title = "Income Group Distribution", x = "Income Group", y = "Count") +
   theme_minimal()
-
 ```
+
 #missingness plot
 ```{r}
-gg_miss_var(brfss_subset) +
-  labs(title = "Missingness by Variable")
+# Summarize missingness
+missing_summary <- miss_var_summary(brfss_subset)
 
+# Plot manually
+ggplot(missing_summary, aes(x = reorder(variable, n_miss), y = n_miss)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Missingness by Variable",
+       x = "Variable",
+       y = "Number of Missing Values") +
+  scale_y_continuous(labels = comma) +
+  theme_minimal()
 ```
+
 #collinearity check
 ```{r}
 brfss_numeric <- brfss_subset %>%
@@ -504,35 +520,34 @@ ggpairs(pairsVars) +
   ggtitle("Pairs Plot of Variables")
 ```
 
-###########################################################################
+################### descriptive histograms ##################################
 
-# Histogram for ment14d
-ggplot(brfss_subset, aes(x = ment14d)) +
-  geom_histogram(binwidth = 1, fill = "steelblue", color = "white") +
-  labs(title = "Distribution of Poor Mental Health Days", x = "Days", y = "Count") +
-  theme_minimal()
-
+```{r}
 # Histogram for age80
 ggplot(brfss_subset, aes(x = age80)) +
   geom_histogram(binwidth = 5, fill = "darkgreen", color = "white") +
   labs(title = "Age Distribution", x = "Age (Grouped)", y = "Count") +
   theme_minimal()
+```
 
+```{r}
 # Histogram for numadult
 ggplot(brfss_subset, aes(x = numadult)) +
   geom_histogram(binwidth = 1, fill = "purple", color = "white") +
   labs(title = "Number of Adults in Household", x = "Adults", y = "Count") +
   theme_minimal()
+```
 
-################## additional histogram #####################################
-
+```{r}
 ggplot(brfss_subset, aes(x = ment14d)) +
   geom_density(fill = "skyblue", alpha = 0.6) +
   labs(title = "Density Plot of Poor Mental Health Days", x = "Days", y = "Density") +
   theme_minimal()
+```
 
 ####################### descriptive statistics ##############################
 
+```{r}
 brfss_subset %>%
   select(ment14d, age80, numadult) %>%
   summarise(
@@ -552,3 +567,4 @@ brfss_subset %>%
     sd_numadult = sd(numadult, na.rm = TRUE),
     iqr_numadult = IQR(numadult, na.rm = TRUE)
   )
+```
