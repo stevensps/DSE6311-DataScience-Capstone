@@ -141,13 +141,28 @@ brfss_subset <- brfss_subset %>%
 ```
 
 ```{r}
-brfss_subset <- brfss_subset %>% #SS 4.2 - Is this needed?
+brfss_subset <- brfss_subset %>%
   mutate(
-    ment14d = ifelse(ment14d == 88, 0, ment14d),
+    menthlth = brfss_raw$MENTHLTH,
+    ment14d = ifelse(menthlth == 88, 0, menthlth),
+    ment14d = na_if(ment14d, 9),
     ment14d = na_if(ment14d, 77),
-    ment14d = na_if(ment14d, 99)
+    ment14d = na_if(ment14d, 99),
+    ment14d_cat = case_when(
+      ment14d == 0 ~ "None",
+      ment14d >= 1 & ment14d <= 13 ~ "Occasional",
+      ment14d >= 14 ~ "Frequent",
+      TRUE ~ NA_character_
+    ),
+    ment14d_cat = factor(ment14d_cat, levels = c("None", "Occasional", "Frequent"))
   )
+```
 
+```{r}
+brfss_subset <- brfss_subset %>%
+  mutate(
+    ment14d = na_if(ment14d, 9)
+  )
 ```
 
 #check ment14d
@@ -155,6 +170,25 @@ brfss_subset <- brfss_subset %>% #SS 4.2 - Is this needed?
 table(brfss_subset$ment14d, useNA = "ifany")
 
 ```
+
+```{r}
+brfss_subset <- brfss_subset %>%
+  mutate(
+    ment14d_cat = case_when(
+      ment14d == 0 ~ "None",
+      ment14d >= 1 & ment14d <= 13 ~ "Occasional",
+      ment14d >= 14 ~ "Frequent",
+      TRUE ~ NA_character_
+    ),
+    ment14d_cat = factor(ment14d_cat, levels = c("None", "Occasional", "Frequent"))
+  )
+
+```
+
+```{r}
+table(brfss_subset$ment14d_cat, useNA = "ifany")
+```
+
 #check hlthpl1, race, incomg1
 ```{r}
 table(brfss_subset$hlthpl1, useNA = "ifany")
@@ -452,14 +486,27 @@ ggplot(melt(heatmapData, na.rm = TRUE), aes(Var1, Var2, fill = value)) +
 topResultsHeat <- significantheatResult[order(-significantheatResult$statistic), ][1:10, ]
 print(topResultsHeat) #SS - Table to show only top 10 results based on statistic and p value less than 0.05
 ```
+
+# Generate ggpairs plots to examine collinearity and statistical significance
+```{r}
+continuous_vars <- brfss_subset[, c("age80", "numadult", "state", "menthlth", "checkup1")]
+ggpairs(continuous_vars)
+```
+
+#PCA biplot
+```{r}
+pca_result <- prcomp(brfss_numeric, scale. = TRUE) #SS 4.4 - Typically I believe PCA is better for higher dimensionality data, and we may want to consider excluding the response. Becuase of this, we may want to do away from the PCA biplot
+biplot(pca_result, main = "PCA Biplot (Centered & Scaled Variables)")
+```
+
+
 # Pearson's Correlation to Measure Continuous Numeric
 ```{r}
 cor.test(brfss_subset$age80, brfss_subset$numadult, method = "pearson")
 cor.test(brfss_subset$age80, brfss_subset$numadult, method = "spearman")
 # Spearman's measurement may provide a more realistic interpretation. Both tests yield statistically significant results.
 ```
-<<<<<<< Updated upstream
-=======
+
 
 # Generate ggpairs plots to examine collinearity and statistical significance
 ```{r}
@@ -475,5 +522,50 @@ biplot(pca_result, main = "PCA Biplot (Centered & Scaled Variables)")
 
 
 ###########################################################################
->>>>>>> Stashed changes
 
+# Histogram for ment14d
+ggplot(brfss_subset, aes(x = ment14d)) +
+  geom_histogram(binwidth = 1, fill = "steelblue", color = "white") +
+  labs(title = "Distribution of Poor Mental Health Days", x = "Days", y = "Count") +
+  theme_minimal()
+
+# Histogram for age80
+ggplot(brfss_subset, aes(x = age80)) +
+  geom_histogram(binwidth = 5, fill = "darkgreen", color = "white") +
+  labs(title = "Age Distribution", x = "Age (Grouped)", y = "Count") +
+  theme_minimal()
+
+# Histogram for numadult
+ggplot(brfss_subset, aes(x = numadult)) +
+  geom_histogram(binwidth = 1, fill = "purple", color = "white") +
+  labs(title = "Number of Adults in Household", x = "Adults", y = "Count") +
+  theme_minimal()
+
+################## additional histogram #####################################
+
+ggplot(brfss_subset, aes(x = ment14d)) +
+  geom_density(fill = "skyblue", alpha = 0.6) +
+  labs(title = "Density Plot of Poor Mental Health Days", x = "Days", y = "Density") +
+  theme_minimal()
+
+####################### descriptive statistics ##############################
+
+brfss_subset %>%
+  select(ment14d, age80, numadult) %>%
+  summarise(
+    count_ment14d = sum(!is.na(ment14d)),
+    mean_ment14d = mean(ment14d, na.rm = TRUE),
+    median_ment14d = median(ment14d, na.rm = TRUE),
+    sd_ment14d = sd(ment14d, na.rm = TRUE),
+    iqr_ment14d = IQR(ment14d, na.rm = TRUE),
+
+    mean_age80 = mean(age80, na.rm = TRUE),
+    median_age80 = median(age80, na.rm = TRUE),
+    sd_age80 = sd(age80, na.rm = TRUE),
+    iqr_age80 = IQR(age80, na.rm = TRUE),
+
+    mean_numadult = mean(numadult, na.rm = TRUE),
+    median_numadult = median(numadult, na.rm = TRUE),
+    sd_numadult = sd(numadult, na.rm = TRUE),
+    iqr_numadult = IQR(numadult, na.rm = TRUE)
+  )
