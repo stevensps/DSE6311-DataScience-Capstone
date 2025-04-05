@@ -21,6 +21,7 @@ library(stringr)
 library(car)
 library(reshape2)
 library(viridis)
+library(GGally)
 ```
 
 
@@ -451,17 +452,28 @@ ggplot(melt(heatmapData, na.rm = TRUE), aes(Var1, Var2, fill = value)) +
 topResultsHeat <- significantheatResult[order(-significantheatResult$statistic), ][1:10, ]
 print(topResultsHeat) #SS - Table to show only top 10 results based on statistic and p value less than 0.05
 ```
-
-#PCA biplot
-```{r}
-pca_result <- prcomp(brfss_numeric, scale. = TRUE) #SS 4.4 - Typically I believe PCA is better for higher dimensionality data, and we may want to consider excluding the response. Becuase of this, we may want to do away from the PCA biplot
-biplot(pca_result, main = "PCA Biplot (Centered & Scaled Variables)")
-```
-
 # Pearson's Correlation to Measure Continuous Numeric
 ```{r}
 cor.test(brfss_subset$age80, brfss_subset$numadult, method = "pearson")
 cor.test(brfss_subset$age80, brfss_subset$numadult, method = "spearman")
 # Spearman's measurement may provide a more realistic interpretation. Both tests yield statistically significant results.
 ```
+<<<<<<< Updated upstream
+=======
+
+# Generate ggpairs plots to examine collinearity and statistical significance
+```{r}
+continuous_vars <- brfss_subset[, c("age80", "numadult", "state", "menthlth", "checkup1")]
+ggpairs(continuous_vars)
+```
+
+#PCA biplot
+```{r}
+pca_result <- prcomp(brfss_numeric, scale. = TRUE) #SS 4.4 - Typically I believe PCA is better for higher dimensionality data, and we may want to consider excluding the response. Because of this, we may want to do away from the PCA biplot
+biplot(pca_result, main = "PCA Biplot (Centered & Scaled Variables)")
+```
+
+
+###########################################################################
+>>>>>>> Stashed changes
 
