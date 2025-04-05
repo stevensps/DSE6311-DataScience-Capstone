@@ -19,11 +19,13 @@ library(corrplot)
 library(stats)
 library(stringr)
 library(car)
-
+library(reshape2)
+library(viridis)
+library(GGally)
 ```
 
 
-#import data
+# Import data
 ```{r}
 # Code below imports the data to any person's machine
 if (!dir.exists("C:/temp")) {
@@ -32,24 +34,31 @@ if (!dir.exists("C:/temp")) {
 
 zipUrl <- "https://www.cdc.gov/brfss/annual_data/2023/files/LLCP2023XPT.zip"
 zipPath <- path.expand("C:/temp/LLCP2023XPT.zip")
-download.file(zipUrl, destfile = zipPath) #Download the file
+if (!file.exists(zipPath)) {
+    download.file(zipUrl, destfile = zipPath)
+} #Download the file
 
 extractPath <- "C:/temp"
-unzip(zipPath, exdir = extractPath)
+sasFile <- file.path(extractPath, "LLCP2023.XPT") 
+if (!file.exists(sasFile)) {
+    unzip(zipPath, exdir = extractPath)
+}
 list.files(extractPath) # Extract, unzip, and make sure file exists
 
-sasFile <- file.path(extractPath, "LLCP2023.XPT") 
-brfss_raw <- read_xpt(sasFile) # Read file into R after specifying file variable
-
-head(brfss_raw)
+if (file.exists(sasFile)) {
+    brfss_raw <- read_xpt(sasFile)
+    head(brfss_raw)
+} else {
+    message("File does not exist, check download or unzip process.")
+} # Read file into R after specifying file variable
 
 ```
 
-#column names
+# Column names
 ```{r}
 names(brfss_raw)
 ```
-#rename variables
+# Rename variables
 ```{r}
 brfss_subset <- brfss_raw %>%
   select(
@@ -77,12 +86,11 @@ brfss_subset <- brfss_raw %>%
 
 ```
 
-#view data type
+# View data type
 ```{r}
 glimpse(brfss_subset)
-
 ```
-#recode
+# Recode
 ```{r}
 brfss_subset <- brfss_subset %>%
   mutate(
@@ -132,21 +140,55 @@ brfss_subset <- brfss_subset %>%
 ```
 
 ```{r}
-brfss_subset <- brfss_subset %>% #SS 4.2 - Is this needed?
+brfss_subset <- brfss_subset %>%
   mutate(
-    ment14d = ifelse(ment14d == 88, 0, ment14d),
+    menthlth = brfss_raw$MENTHLTH,
+    ment14d = ifelse(menthlth == 88, 0, menthlth),
+    ment14d = na_if(ment14d, 9),
     ment14d = na_if(ment14d, 77),
-    ment14d = na_if(ment14d, 99)
+    ment14d = na_if(ment14d, 99),
+    ment14d_cat = case_when(
+      ment14d == 0 ~ "None",
+      ment14d >= 1 & ment14d <= 13 ~ "Occasional",
+      ment14d >= 14 ~ "Frequent",
+      TRUE ~ NA_character_
+    ),
+    ment14d_cat = factor(ment14d_cat, levels = c("None", "Occasional", "Frequent"))
   )
-
 ```
 
-#check ment14d
+```{r}
+brfss_subset <- brfss_subset %>%
+  mutate(
+    ment14d = na_if(ment14d, 9)
+  )
+```
+
+# Check ment14d
 ```{r}
 table(brfss_subset$ment14d, useNA = "ifany")
 
 ```
-#check hlthpl1, race, incomg1
+
+```{r}
+brfss_subset <- brfss_subset %>%
+  mutate(
+    ment14d_cat = case_when(
+      ment14d == 0 ~ "None",
+      ment14d >= 1 & ment14d <= 13 ~ "Occasional",
+      ment14d >= 14 ~ "Frequent",
+      TRUE ~ NA_character_
+    ),
+    ment14d_cat = factor(ment14d_cat, levels = c("None", "Occasional", "Frequent"))
+  )
+
+```
+
+```{r}
+table(brfss_subset$ment14d_cat, useNA = "ifany")
+```
+
+# Check hlthpl1, race, incomg1
 ```{r}
 table(brfss_subset$hlthpl1, useNA = "ifany")
 table(brfss_subset$race, useNA = "ifany")
@@ -165,25 +207,18 @@ brfss_subset <- brfss_subset %>%
 brfss_subset <- brfss_subset %>% 
   mutate(
     race = as.numeric(race),
-    race = na_if(race, 77), #Do any values meet this criteria?
-    race = na_if(race, 99) #Do any values meet this criteria?
-  )
-```
-
-```{r}
-brfss_subset <- brfss_subset %>% # SS 4.2 - Duplicate?
-  mutate(
-    race = as.numeric(race),
-    race = na_if(race, 77),
+    race = na_if(race, 77), 
     race = na_if(race, 99)
   )
 
 ```
-#recheck
+
+# Recheck
 ```{r}
 table(brfss_subset$race, useNA = "ifany")
 ```
-#try to fix race again
+
+# Final fix for Race
 ```{r}
 brfss_subset <- brfss_subset %>%
   mutate(
@@ -198,7 +233,7 @@ brfss_subset <- brfss_subset %>%
 table(brfss_subset$race, useNA = "ifany")
 
 ```
-#convert yes/no binary variables to factors
+# Convert yes/no binary variables to factors
 ```{r}
 brfss_subset <- brfss_subset %>%
   mutate(
@@ -211,16 +246,16 @@ brfss_subset <- brfss_subset %>%
 
 ```
 
-#check conversion
+# Check conversion
 ```{r}
-table(brfss_subset$hlthpl1, useNA = "ifany") #Noting class imbalance here, this is good!
+table(brfss_subset$hlthpl1, useNA = "ifany") #Noting class imbalance
 
 ```
 ```{r}
 table(brfss_subset$exerany2, useNA = "ifany")
 
 ```
-#convert mulit level categorical variables to labled factors
+# Convert multi level categorical variables to labeled factors
 ```{r}
 brfss_subset <- brfss_subset %>%
   mutate(
@@ -247,7 +282,7 @@ brfss_subset <- brfss_subset %>%
 
 ```
 
-#remainging categorical variables
+# Remaining categorical variables
 ```{r}
 brfss_subset <- brfss_subset %>%
   mutate(
@@ -269,7 +304,7 @@ brfss_subset <- brfss_subset %>%
 
 ```
 
-#check to ensure recoded factor variables
+# Check to ensure recoded factor variables
 ```{r}
 table(brfss_subset$race, useNA = "ifany")
 table(brfss_subset$educa, useNA = "ifany")
@@ -277,9 +312,9 @@ table(brfss_subset$sex, useNA = "ifany")
 table(brfss_subset$employ1, useNA = "ifany")
 
 ```
-#summary table
+# Summary table
 ```{r}
-brfss_subset %>% #Are we excluding any variables in the select statement. Otherwise, it may be redunant?
+brfss_subset %>% 
   select(ment14d, hlthpl1, persdoc3, medcost1, checkup1, primins1,
          addepev3, acedeprs, decide, exerany2, pa150r4, sex, age80,
          race, educa, employ1, marital, incomg1, numadult) %>%
@@ -292,7 +327,7 @@ brfss_subset %>% #Are we excluding any variables in the select statement. Otherw
 
 ```
 
-#stratified summary table hlthpl1
+# Stratified summary table hlthpl1
 ```{r}
 brfss_subset %>%
   select(ment14d, persdoc3, medcost1, checkup1, primins1, addepev3,
@@ -309,7 +344,7 @@ brfss_subset %>%
 
 ```
 
-#stratified summary table _ment14d
+# Stratified summary table _ment14d
 ```{r}
 brfss_subset %>%
   select(ment14d, persdoc3, medcost1, checkup1, primins1, addepev3,
@@ -323,18 +358,16 @@ brfss_subset %>%
   ) %>%
   add_p() %>%
   bold_labels()
-
 ```
 
-#race distribution bar plot
+# Race distribution bar plot
 ```{r}
 ggplot(brfss_subset, aes(x = race)) +
   geom_bar() +
   labs(title = "Race Distribution", x = "Race", y = "Count") +
   theme_minimal()
-
 ```
-#ment14d histogram
+# Ment14d histogram
 ```{r}
 ggplot(brfss_subset, aes(x = ment14d)) +
   geom_histogram(binwidth = 1, fill = "steelblue", color = "white") +
@@ -342,7 +375,7 @@ ggplot(brfss_subset, aes(x = ment14d)) +
   theme_minimal()
 
 ```
-#ment14d by hlthpl1 boxplot
+# Ment14d by hlthpl1 boxplot
 ```{r}
 ggplot(brfss_subset, aes(x = hlthpl1, y = ment14d)) +
   geom_boxplot() +
@@ -375,37 +408,139 @@ gg_miss_var(brfss_subset) +
 #collinearity check
 ```{r}
 brfss_numeric <- brfss_subset %>%
-  select(ment14d, age80, numadult) %>% # SS 4.2 - We may want to consider removing. Corrplots are ideally for continuous variables, and the response should probably be excluded.
+  select(age80, numadult, state, menthlth, checkup1) %>% 
   na.omit()
-
 cor_matrix <- cor(brfss_numeric)
 corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.8)
 
 ```
-# Basic Regression Analysis for response
-```{r}
-lmModel <- lm(ment14d ~ hlthpl1, data = brfss_subset)
-summary(lmModel)
 
-```
-# Basic Regression with a few more demographic variables
+# Chi Squared iterative test
 ```{r}
-lmModelAddition <- lm(ment14d ~ hlthpl1 + sex + incomg1, data = brfss_subset)
-summary(lmModelAddition)
-vif(lmModelAddition) # Low multicollinearity - this is good!
-```
-# Chi Squared Test for days since last checkup and medical cost
-```{r}
-tableChiSq <- table(brfss_subset$medcost1, brfss_subset$checkup1)
+categoricalVars <- names(brfss_subset)[sapply(brfss_subset, is.factor)]
+chiResults <- list()
 
-chiResult <- chisq.test(tableChiSq)
-print(chiResult) # SS 4.2 - Indicates checkups related to medical costs. May want to examine further
+for (i in 1:(length(categoricalVars) - 1)) {
+  for (j in (i+1):length(categoricalVars)) {
+    var1 <- categoricalVars[i]
+    var2 <- categoricalVars[j] # SS - iterate through predictors to compare 2
+    
+    chiTest <- chisq.test(table(brfss_subset[[var1]], brfss_subset[[var2]]),
+                          simulate.p.value = TRUE)
+    chiResults[[paste(var1, var2, sep = "_vs_")]] <- # SS - run chi sq and list result
+      list(
+        variable1 = var1,
+        variable2 = var2,
+        p_value = chiTest$p.value,
+        statistic = chiTest$statistic
+      )
+  }
+}
+
+significantchiResult <- Filter(function(x) x$p_value < 0.05, chiResults)
+```
+# Chi-squared heatmap and table
+```{r}
+chiResultsDF <- do.call(rbind, lapply(chiResults, function(x) {
+  data.frame(
+    variable1 = x$variable1,
+    variable2 = x$variable2,
+    statistic = x$statistic,
+    p_value = x$p_value
+  )
+}
+  )) # SS - do.call allows dynamic execution of another function
+
+significantheatResult <- subset(chiResultsDF, p_value < 0.05)
+
+heatmapData <- acast( #SS - acast to convert to matrix for heatmap
+  significantheatResult,
+  variable1 ~ variable2,
+  value.var =  "statistic",
+  fill = NA
+)
+
+ggplot(melt(heatmapData, na.rm = TRUE), aes(Var1, Var2, fill = value)) +
+  geom_tile() +
+  scale_fill_viridis_c(option = "plasma", name = "Chi-Square Stat") +
+  labs(title = "Heatmap of Iterative Chi-Square Stats",
+       x = "Variable 1",
+       y = "Variable 2") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) #SS - create heatmap
+```
+
+## Generate Focused table with top results
+```{r}
+topResultsHeat <- significantheatResult[order(-significantheatResult$statistic), ][1:10, ]
+print(topResultsHeat) #SS - Table to show only top 10 results based on statistic and p value less than 0.05
 ```
 
 #PCA biplot
 ```{r}
 pca_result <- prcomp(brfss_numeric, scale. = TRUE)
 biplot(pca_result, main = "PCA Biplot (Centered & Scaled Variables)")
-
 ```
 
+# Pearson's Correlation to Measure Numeric
+```{r}
+cor.test(brfss_subset$age80, brfss_subset$numadult, method = "pearson")
+cor.test(brfss_subset$age80, brfss_subset$numadult, method = "spearman")
+# Spearman's measurement may provide a more realistic interpretation. Both tests yield statistically significant results.
+```
+
+
+# Generate ggpairs plots to examine collinearity and statistical significance
+```{r}
+pairsVars <- brfss_subset[, c("age80", "numadult", "state", "menthlth", "checkup1")]
+ggpairs(pairsVars)
+```
+
+###########################################################################
+
+# Histogram for ment14d
+ggplot(brfss_subset, aes(x = ment14d)) +
+  geom_histogram(binwidth = 1, fill = "steelblue", color = "white") +
+  labs(title = "Distribution of Poor Mental Health Days", x = "Days", y = "Count") +
+  theme_minimal()
+
+# Histogram for age80
+ggplot(brfss_subset, aes(x = age80)) +
+  geom_histogram(binwidth = 5, fill = "darkgreen", color = "white") +
+  labs(title = "Age Distribution", x = "Age (Grouped)", y = "Count") +
+  theme_minimal()
+
+# Histogram for numadult
+ggplot(brfss_subset, aes(x = numadult)) +
+  geom_histogram(binwidth = 1, fill = "purple", color = "white") +
+  labs(title = "Number of Adults in Household", x = "Adults", y = "Count") +
+  theme_minimal()
+
+################## additional histogram #####################################
+
+ggplot(brfss_subset, aes(x = ment14d)) +
+  geom_density(fill = "skyblue", alpha = 0.6) +
+  labs(title = "Density Plot of Poor Mental Health Days", x = "Days", y = "Density") +
+  theme_minimal()
+
+####################### descriptive statistics ##############################
+
+brfss_subset %>%
+  select(ment14d, age80, numadult) %>%
+  summarise(
+    count_ment14d = sum(!is.na(ment14d)),
+    mean_ment14d = mean(ment14d, na.rm = TRUE),
+    median_ment14d = median(ment14d, na.rm = TRUE),
+    sd_ment14d = sd(ment14d, na.rm = TRUE),
+    iqr_ment14d = IQR(ment14d, na.rm = TRUE),
+
+    mean_age80 = mean(age80, na.rm = TRUE),
+    median_age80 = median(age80, na.rm = TRUE),
+    sd_age80 = sd(age80, na.rm = TRUE),
+    iqr_age80 = IQR(age80, na.rm = TRUE),
+
+    mean_numadult = mean(numadult, na.rm = TRUE),
+    median_numadult = median(numadult, na.rm = TRUE),
+    sd_numadult = sd(numadult, na.rm = TRUE),
+    iqr_numadult = IQR(numadult, na.rm = TRUE)
+  )
