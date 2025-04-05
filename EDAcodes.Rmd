@@ -496,35 +496,34 @@ pairsVars <- brfss_subset[, c("age80", "numadult", "state", "menthlth", "checkup
 ggpairs(pairsVars)
 ```
 
-###########################################################################
+################### descriptive histograms ##################################
 
-# Histogram for ment14d
-ggplot(brfss_subset, aes(x = ment14d)) +
-  geom_histogram(binwidth = 1, fill = "steelblue", color = "white") +
-  labs(title = "Distribution of Poor Mental Health Days", x = "Days", y = "Count") +
-  theme_minimal()
-
+```{r}
 # Histogram for age80
 ggplot(brfss_subset, aes(x = age80)) +
   geom_histogram(binwidth = 5, fill = "darkgreen", color = "white") +
   labs(title = "Age Distribution", x = "Age (Grouped)", y = "Count") +
   theme_minimal()
+```
 
+```{r}
 # Histogram for numadult
 ggplot(brfss_subset, aes(x = numadult)) +
   geom_histogram(binwidth = 1, fill = "purple", color = "white") +
   labs(title = "Number of Adults in Household", x = "Adults", y = "Count") +
   theme_minimal()
+```
 
-################## additional histogram #####################################
-
+```{r}
 ggplot(brfss_subset, aes(x = ment14d)) +
   geom_density(fill = "skyblue", alpha = 0.6) +
   labs(title = "Density Plot of Poor Mental Health Days", x = "Days", y = "Density") +
   theme_minimal()
+```
 
 ####################### descriptive statistics ##############################
 
+```{r}
 brfss_subset %>%
   select(ment14d, age80, numadult) %>%
   summarise(
@@ -544,3 +543,4 @@ brfss_subset %>%
     sd_numadult = sd(numadult, na.rm = TRUE),
     iqr_numadult = IQR(numadult, na.rm = TRUE)
   )
+```
