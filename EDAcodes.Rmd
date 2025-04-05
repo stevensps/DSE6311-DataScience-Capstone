@@ -25,7 +25,7 @@ library(GGally)
 ```
 
 
-#import data
+# Import data
 ```{r}
 # Code below imports the data to any person's machine
 if (!dir.exists("C:/temp")) {
@@ -54,11 +54,11 @@ if (file.exists(sasFile)) {
 
 ```
 
-#column names
+# Column names
 ```{r}
 names(brfss_raw)
 ```
-#rename variables
+# Rename variables
 ```{r}
 brfss_subset <- brfss_raw %>%
   select(
@@ -86,12 +86,11 @@ brfss_subset <- brfss_raw %>%
 
 ```
 
-#view data type
+# View data type
 ```{r}
 glimpse(brfss_subset)
-
 ```
-#recode
+# Recode
 ```{r}
 brfss_subset <- brfss_subset %>%
   mutate(
@@ -165,7 +164,7 @@ brfss_subset <- brfss_subset %>%
   )
 ```
 
-#check ment14d
+# Check ment14d
 ```{r}
 table(brfss_subset$ment14d, useNA = "ifany")
 
@@ -189,7 +188,7 @@ brfss_subset <- brfss_subset %>%
 table(brfss_subset$ment14d_cat, useNA = "ifany")
 ```
 
-#check hlthpl1, race, incomg1
+# Check hlthpl1, race, incomg1
 ```{r}
 table(brfss_subset$hlthpl1, useNA = "ifany")
 table(brfss_subset$race, useNA = "ifany")
@@ -208,25 +207,18 @@ brfss_subset <- brfss_subset %>%
 brfss_subset <- brfss_subset %>% 
   mutate(
     race = as.numeric(race),
-    race = na_if(race, 77), #Do any values meet this criteria?
-    race = na_if(race, 99) #Do any values meet this criteria?
-  )
-```
-
-```{r}
-brfss_subset <- brfss_subset %>% # SS 4.2 - Duplicate?
-  mutate(
-    race = as.numeric(race),
-    race = na_if(race, 77),
+    race = na_if(race, 77), 
     race = na_if(race, 99)
   )
 
 ```
-#recheck
+
+# Recheck
 ```{r}
 table(brfss_subset$race, useNA = "ifany")
 ```
-#try to fix race again
+
+# Final fix for Race
 ```{r}
 brfss_subset <- brfss_subset %>%
   mutate(
@@ -241,7 +233,7 @@ brfss_subset <- brfss_subset %>%
 table(brfss_subset$race, useNA = "ifany")
 
 ```
-#convert yes/no binary variables to factors
+# Convert yes/no binary variables to factors
 ```{r}
 brfss_subset <- brfss_subset %>%
   mutate(
@@ -254,16 +246,16 @@ brfss_subset <- brfss_subset %>%
 
 ```
 
-#check conversion
+# Check conversion
 ```{r}
-table(brfss_subset$hlthpl1, useNA = "ifany") #Noting class imbalance here, this is good!
+table(brfss_subset$hlthpl1, useNA = "ifany") #Noting class imbalance
 
 ```
 ```{r}
 table(brfss_subset$exerany2, useNA = "ifany")
 
 ```
-#convert multi level categorical variables to labeled factors
+# Convert multi level categorical variables to labeled factors
 ```{r}
 brfss_subset <- brfss_subset %>%
   mutate(
@@ -290,7 +282,7 @@ brfss_subset <- brfss_subset %>%
 
 ```
 
-#remaining categorical variables
+# Remaining categorical variables
 ```{r}
 brfss_subset <- brfss_subset %>%
   mutate(
@@ -312,7 +304,7 @@ brfss_subset <- brfss_subset %>%
 
 ```
 
-#check to ensure recoded factor variables
+# Check to ensure recoded factor variables
 ```{r}
 table(brfss_subset$race, useNA = "ifany")
 table(brfss_subset$educa, useNA = "ifany")
@@ -320,9 +312,9 @@ table(brfss_subset$sex, useNA = "ifany")
 table(brfss_subset$employ1, useNA = "ifany")
 
 ```
-#summary table
+# Summary table
 ```{r}
-brfss_subset %>% #Are we excluding any variables in the select statement. Otherwise, it may be redunant?
+brfss_subset %>% 
   select(ment14d, hlthpl1, persdoc3, medcost1, checkup1, primins1,
          addepev3, acedeprs, decide, exerany2, pa150r4, sex, age80,
          race, educa, employ1, marital, incomg1, numadult) %>%
@@ -335,7 +327,7 @@ brfss_subset %>% #Are we excluding any variables in the select statement. Otherw
 
 ```
 
-#stratified summary table hlthpl1
+# Stratified summary table hlthpl1
 ```{r}
 brfss_subset %>%
   select(ment14d, persdoc3, medcost1, checkup1, primins1, addepev3,
@@ -352,7 +344,7 @@ brfss_subset %>%
 
 ```
 
-#stratified summary table _ment14d
+# Stratified summary table _ment14d
 ```{r}
 brfss_subset %>%
   select(ment14d, persdoc3, medcost1, checkup1, primins1, addepev3,
@@ -366,18 +358,16 @@ brfss_subset %>%
   ) %>%
   add_p() %>%
   bold_labels()
-
 ```
 
-#race distribution bar plot
+# Race distribution bar plot
 ```{r}
 ggplot(brfss_subset, aes(x = race)) +
   geom_bar() +
   labs(title = "Race Distribution", x = "Race", y = "Count") +
   theme_minimal()
-
 ```
-#ment14d histogram
+# Ment14d histogram
 ```{r}
 ggplot(brfss_subset, aes(x = ment14d)) +
   geom_histogram(binwidth = 1, fill = "steelblue", color = "white") +
@@ -385,7 +375,7 @@ ggplot(brfss_subset, aes(x = ment14d)) +
   theme_minimal()
 
 ```
-#ment14d by hlthpl1 boxplot
+# Ment14d by hlthpl1 boxplot
 ```{r}
 ggplot(brfss_subset, aes(x = hlthpl1, y = ment14d)) +
   geom_boxplot() +
@@ -418,7 +408,7 @@ gg_miss_var(brfss_subset) +
 #collinearity check
 ```{r}
 brfss_numeric <- brfss_subset %>%
-  select(ment14d, age80, numadult) %>% 
+  select(age80, numadult, state, menthlth, checkup1) %>% 
   na.omit()
 cor_matrix <- cor(brfss_numeric)
 corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.8)
@@ -448,7 +438,6 @@ for (i in 1:(length(categoricalVars) - 1)) {
 }
 
 significantchiResult <- Filter(function(x) x$p_value < 0.05, chiResults)
-print(significantchiResult) #Only list statistically significant results
 ```
 # Chi-squared heatmap and table
 ```{r}
@@ -481,26 +470,19 @@ ggplot(melt(heatmapData, na.rm = TRUE), aes(Var1, Var2, fill = value)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) #SS - create heatmap
 ```
 
-# Generate Focused table with top results
+## Generate Focused table with top results
 ```{r}
 topResultsHeat <- significantheatResult[order(-significantheatResult$statistic), ][1:10, ]
 print(topResultsHeat) #SS - Table to show only top 10 results based on statistic and p value less than 0.05
 ```
 
-# Generate ggpairs plots to examine collinearity and statistical significance
-```{r}
-continuous_vars <- brfss_subset[, c("age80", "numadult", "state", "menthlth", "checkup1")]
-ggpairs(continuous_vars)
-```
-
 #PCA biplot
 ```{r}
-pca_result <- prcomp(brfss_numeric, scale. = TRUE) #SS 4.4 - Typically I believe PCA is better for higher dimensionality data, and we may want to consider excluding the response. Becuase of this, we may want to do away from the PCA biplot
+pca_result <- prcomp(brfss_numeric, scale. = TRUE)
 biplot(pca_result, main = "PCA Biplot (Centered & Scaled Variables)")
 ```
 
-
-# Pearson's Correlation to Measure Continuous Numeric
+# Pearson's Correlation to Measure Numeric
 ```{r}
 cor.test(brfss_subset$age80, brfss_subset$numadult, method = "pearson")
 cor.test(brfss_subset$age80, brfss_subset$numadult, method = "spearman")
@@ -510,16 +492,9 @@ cor.test(brfss_subset$age80, brfss_subset$numadult, method = "spearman")
 
 # Generate ggpairs plots to examine collinearity and statistical significance
 ```{r}
-continuous_vars <- brfss_subset[, c("age80", "numadult", "state", "menthlth", "checkup1")]
-ggpairs(continuous_vars)
+pairsVars <- brfss_subset[, c("age80", "numadult", "state", "menthlth", "checkup1")]
+ggpairs(pairsVars)
 ```
-
-#PCA biplot
-```{r}
-pca_result <- prcomp(brfss_numeric, scale. = TRUE) #SS 4.4 - Typically I believe PCA is better for higher dimensionality data, and we may want to consider excluding the response. Because of this, we may want to do away from the PCA biplot
-biplot(pca_result, main = "PCA Biplot (Centered & Scaled Variables)")
-```
-
 
 ###########################################################################
 
