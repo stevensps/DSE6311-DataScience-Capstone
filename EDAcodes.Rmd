@@ -22,6 +22,8 @@ library(car)
 library(reshape2)
 library(viridis)
 library(GGally)
+library(knitr)
+library(kableExtra)
 library(scales)
 ```
 
@@ -431,7 +433,7 @@ corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.8)
 
 ```
 
-# Chi Squared iterative test
+# Chi Squared iterative test (in report)
 ```{r}
 categoricalVars <- names(brfss_subset)[sapply(brfss_subset, is.factor)]
 chiResults <- list()
@@ -455,7 +457,7 @@ for (i in 1:(length(categoricalVars) - 1)) {
 
 significantchiResult <- Filter(function(x) x$p_value < 0.05, chiResults)
 ```
-# Chi-squared heatmap and table
+# Chi-squared heatmap and table (in report)
 ```{r}
 chiResultsDF <- do.call(rbind, lapply(chiResults, function(x) {
   data.frame(
@@ -486,13 +488,18 @@ ggplot(melt(heatmapData, na.rm = TRUE), aes(Var1, Var2, fill = value)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) #SS - create heatmap
 ```
 
-## Generate Focused table with top results
+## Generate Focused table with top results (in report)
 ```{r}
 topResultsHeat <- significantheatResult[order(-significantheatResult$statistic), ][1:10, ]
 print(topResultsHeat) #SS - Table to show only top 10 results based on statistic and p value less than 0.05
+
+topResultsHeat %>%
+  kable(format = "html") %>%
+  kable_styling()
+
 ```
 
-#PCA biplot
+# PCA biplot
 ```{r}
 pca_result <- prcomp(brfss_numeric, scale. = TRUE)
 biplot(pca_result, main = "PCA Biplot (Centered & Scaled Variables)")
@@ -506,10 +513,11 @@ cor.test(brfss_subset$age80, brfss_subset$numadult, method = "spearman")
 ```
 
 
-# Generate ggpairs plots to examine collinearity and statistical significance
+# Generate ggpairs plots to examine collinearity and statistical significance (in report)
 ```{r}
 pairsVars <- brfss_subset[, c("age80", "numadult", "state", "menthlth", "checkup1")]
-ggpairs(pairsVars)
+ggpairs(pairsVars) +
+  ggtitle("Pairs Plot of Variables")
 ```
 
 ################### descriptive histograms ##################################
