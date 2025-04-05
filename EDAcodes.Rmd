@@ -564,3 +564,26 @@ brfss_subset %>%
     iqr_numadult = IQR(numadult, na.rm = TRUE)
   )
 ```
+
+```{r}
+# Stratified Summary Statistics (mean, median, sd) of ment14 by insurance status
+summary_stats <- brfss_subset %>%
+  group_by(hlthpl1) %>%
+  summarise(
+    mean_ment14 = mean(ment14d, na.rm = TRUE),
+    median_ment14 = median(ment14d, na.rm = TRUE),
+    sd_ment14 = sd(ment14d, na.rm = TRUE),
+    n = n()  # Number of observations in each group
+  ) %>%
+  mutate(
+    mean_ment14 = round(mean_ment14, 2),
+    median_ment14 = round(median_ment14, 2),
+    sd_ment14 = round(sd_ment14, 2)
+  )
+
+# View the table in R
+print(summary_stats)
+
+# Export the summary statistics table to a CSV file
+write.csv(summary_stats, "summary_statistics.csv", row.names = FALSE)
+```
