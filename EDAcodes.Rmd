@@ -568,11 +568,11 @@ brfss_subset %>%
     iqr_numadult = IQR(numadult, na.rm = TRUE)
   )
 ```
-
+#CR
 ```{r}
 source("calcSplitRatio-3.R")
 ```
-
+#CR
 ```{r}
 split_ratio <- calcSplitRatio(df = brfss_subset)
 set.seed(42)
@@ -582,7 +582,7 @@ test_df <- brfss_subset[-train_indices, ]
 
 ```
 
-
+#CR
 ```{r}
 set.seed(42)
 train_indices <- sample(nrow(brfss_subset), size = floor(0.78 * nrow(brfss_subset)))
@@ -591,7 +591,7 @@ train_df <- brfss_subset[train_indices, ]
 test_df <- brfss_subset[-train_indices, ]
 
 ```
-
+#CR
 ```{r}
 library(mice)
 
@@ -604,7 +604,7 @@ imputed_test <- mice(test_df, m = 1, method = "pmm", maxit = 5)
 test_df <- complete(imputed_test)
 
 ```
-
+#CR
 ```{r}
 glimpse(train_df)
 glimpse(test_df)
@@ -613,19 +613,19 @@ cat("Missing values in training data:", sum(is.na(train_df)), "\n")
 cat("Missing values in test data:", sum(is.na(test_df)), "\n")
 
 ```
-
+#CR
 ```{r}
 train_df$mh_flag <- ifelse(train_df$addepev3 == 1 | train_df$decide == 1, 1, 0)
 test_df$mh_flag <- ifelse(test_df$addepev3 == 1 | test_df$decide == 1, 1, 0)
 
 ```
-
+#CR
 ```{r}
 train_df$phys_active <- ifelse(train_df$exerany2 == "Yes" & train_df$pa150r4 == "Meets guidelines", 1, 0)
 test_df$phys_active <- ifelse(test_df$exerany2 == "Yes" & test_df$pa150r4 == "Meets guidelines", 1, 0)
 
 ```
-
+#CR
 ```{r}
 to_binary <- function(x) ifelse(x == "Yes", 1, 0)
 
@@ -642,7 +642,7 @@ test_df$access_score <- rowSums(data.frame(
 ))
 
 ```
-
+#CR
 ```{r}
 train_df$income_group <- fct_collapse(train_df$incomg1,
   "Low" = c("Less than $10k", "$10k–$15k", "$15k–$20k"),
@@ -657,7 +657,7 @@ test_df$income_group <- fct_collapse(test_df$incomg1,
 )
 
 ```
-
+#CR
 ```{r}
 train_df$educa_group <- fct_collapse(train_df$educa,
   "HS_or_Less" = c("Never attended school", "Grades 1-8", "Grades 9-11", "High school grad"),
@@ -672,11 +672,11 @@ test_df$educa_group <- fct_collapse(test_df$educa,
 )
 
 ```
-
+#CR
 ```{r}
 library(caret)
 ```
-
+#CR
 ```{r}
 
 encoding_model <- dummyVars(~ ., data = train_df %>% select(-ment14d_cat))
@@ -688,7 +688,7 @@ train_encoded$ment14d_cat <- train_df$ment14d_cat
 test_encoded$ment14d_cat <- test_df$ment14d_cat
 
 ```
-
+#CR
 ```{r}
 str(train_encoded)
 summary(train_encoded$ment14d_cat)
