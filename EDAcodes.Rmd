@@ -370,14 +370,14 @@ ggplot(brfss_subset, aes(x = race)) +
   labs(title = "Race Distribution", x = "Race", y = "Count") +
   scale_y_continuous(labels = comma) +  # clean y-axis labels
   theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # rotate x-axis labels
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # rotate x-axis labels BK
 ```
 # Ment14d histogram
 ```{r}
 ggplot(brfss_subset, aes(x = ment14d)) +
   geom_histogram(binwidth = 1, fill = "steelblue", color = "white") +
   labs(title = "Distribution of Poor Mental Health Days", x = "Days", y = "Count") +
-  scale_y_continuous(labels = comma) +  # clean y-axis labels
+  scale_y_continuous(labels = comma) +  # clean y-axis labels BK
   theme_minimal()
 
 ```
@@ -386,7 +386,7 @@ ggplot(brfss_subset, aes(x = ment14d)) +
 ggplot(brfss_subset, aes(x = ment14d)) +
   geom_histogram(binwidth = 1, fill = "steelblue", color = "white") +
   labs(title = "Distribution of Poor Mental Health Days", x = "Days", y = "Count") +
-  scale_y_continuous(labels = comma) +  # clean y-axis labels
+  scale_y_continuous(labels = comma) +  # clean y-axis labels BK
   theme_minimal()
 ```
 
@@ -395,7 +395,7 @@ ggplot(brfss_subset, aes(x = ment14d)) +
 ggplot(brfss_subset, aes(x = exerany2)) +
   geom_bar() +
   labs(title = "Exercise Participation", x = "Exercised in Past 30 Days", y = "Count") +
-  scale_y_continuous(labels = comma) +  # clean y-axis labels
+  scale_y_continuous(labels = comma) +  # clean y-axis labels BK
   theme_minimal()
 ```
 
@@ -523,6 +523,7 @@ ggpairs(pairsVars) +
 ################### descriptive histograms ##################################
 
 ```{r}
+# descriptive histograms BK
 # Histogram for age80
 ggplot(brfss_subset, aes(x = age80)) +
   geom_histogram(binwidth = 5, fill = "darkgreen", color = "white") +
@@ -548,6 +549,7 @@ ggplot(brfss_subset, aes(x = ment14d)) +
 ####################### descriptive statistics ##############################
 
 ```{r}
+# descriptive stats table BK
 brfss_subset %>%
   select(ment14d, age80, numadult) %>%
   summarise(
