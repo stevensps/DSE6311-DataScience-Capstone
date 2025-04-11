@@ -215,12 +215,15 @@ test_df <- test_df %>%
   )
 table(test_df$race, useNA = "ifany")
 ```
-########Ignore Imput RDS as it is not universal#############
+
 ```{r}
-imputedTrain <- readRDS("imputedTrain_rf.rds")
+set.seed(123)
+imputedTrain <- mice(train_df, m = 1, method = "rf", maxit = 15)
+plot(imputedTrain)
 train_df <- complete(imputedTrain)
 
-imputed_test <- readRDS("imputedTest_pmm.rds")
+set.seed(124)
+imputed_test <- mice(test_df, m = 1, method = "pmm", maxit = 15)
 test_df <- complete(imputed_test)
 ```
 
