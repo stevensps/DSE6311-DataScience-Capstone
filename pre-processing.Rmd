@@ -215,7 +215,7 @@ test_df <- test_df %>%
   )
 table(test_df$race, useNA = "ifany")
 ```
-
+########Ignore Imput RDS as it is not universal#############
 ```{r}
 imputedTrain <- readRDS("imputedTrain_rf.rds")
 train_df <- complete(imputedTrain)
