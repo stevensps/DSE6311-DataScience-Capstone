@@ -1,6 +1,6 @@
 ---
 title: "Data Pre-Processing"
-author: "Steven Simonsen"
+author: "Steven S., Ben K., and Chris R."
 date: "2025-04-10"
 output: html_document
 ---
@@ -25,6 +25,9 @@ library(kableExtra)
 library(scales)
 library(caret)
 library(mice)
+library(fastDummies)
+library(tidymodels)
+library(parallel)
 ```
 
 
@@ -94,6 +97,7 @@ brfss_subset <- brfss_raw %>%
 
 # Initial Data Split - CR and SS
 ```{r}
+getwd()
 source("calcSplitRatio-3.R")
 split_ratio <- calcSplitRatio(df = brfss_subset)
 
@@ -151,6 +155,12 @@ train_df <- train_df %>%
     menthlth = na_if(menthlth, 77),
     menthlth = na_if(menthlth, 99))
 table(train_df$menthlth)
+```
+```{r}
+train_df <- train_df %>%
+  mutate(
+    ment14d = na_if(ment14d, 9)
+  )
 ```
 
 # Check ment14d
@@ -215,6 +225,13 @@ test_df <-  test_df %>%
 table(test_df$menthlth)
 ```
 
+```{r}
+test_df <- test_df %>%
+  mutate(
+    ment14d = na_if(ment14d, 9)
+  )
+```
+
 # Check ment14d
 ```{r}
 table(test_df$ment14d, useNA = "ifany")
@@ -228,17 +245,67 @@ test_df <- test_df %>%
 table(test_df$race, useNA = "ifany")
 ```
 
-# Impute Missing VAlues
+# Encode Train Variables - BK
 ```{r}
+encodeTrain <- dummy_cols(train_df, #Select multilevel Nominal predictors for encoding
+                       select_columns = c("race", "primins1", "employ1",
+                                          "marital", "incomg1", "state"),
+                       remove_first_dummy = TRUE, #Avoids dummy variable trap
+                       remove_selected_columns = TRUE) #Removes original, un-encoded columns
+```
+# Encode Test Variables - BK
+```{r}
+encodeTest <- dummy_cols(test_df, 
+                       select_columns = c("race", "primins1", "employ1",
+                                          "marital", "incomg1", "state"),
+                       remove_first_dummy = TRUE, 
+                       remove_selected_columns = TRUE)
+```
+
+
+# Impute Missing Values - CR and SS
+```{r}
+#Impute Train
+predMatrix <- quickpred(encodeTrain, mincor = 0.2) #Create Prediction matrix to only use variables for comparison with correlation greater than 0.2
+
 set.seed(123)
-imputedTrain <- mice(train_df, m = 1, method = "rf", maxit = 15)
+imputedTrain <- parlmice(encodeTrain, #parlmice to introduce parallel processing
+                         m = 1, 
+                         method = "pmm", #PMM made sense given encoding. Fits regression model, and then estimates predicted values using random sampling from matched values.
+                         maxit = 8,
+                         predictorMatrix = predMatrix,
+                         n.core = 4,
+                         n.imp.core = 1)
 plot(imputedTrain)
-train_df <- complete(imputedTrain)
+trainimputeFinal <- complete(imputedTrain)
 
-set.seed(124)
-imputed_test <- mice(test_df, m = 1, method = "pmm", maxit = 15)
-test_df <- complete(imputed_test)
+#Impute Test
+set.seed(123)
+imputedTest <- parlmice(encodeTest, 
+                         m = 1, 
+                         method = "pmm", 
+                         maxit = 8,
+                         predictorMatrix = predMatrix,
+                         n.core = 4,
+                         n.imp.core = 1)
+plot(imputedTest)
+testimputeFinal <- complete(imputedTest)
+```
 
+# Tidymodels Recipe for Scaling/Centering - SS
+```{r}
+recipe <- recipe(ment14d ~ ., data = trainimputeFinal) %>% #Tidymodels to simplify model fitting and predicting later
+  step_center(all_predictors()) %>% #Center variables
+  step_scale(all_predictors()) #Scale variables
+
+preparedRecipe <- prep(recipe, training = trainimputeFinal) #Prepares recipe with statistics from transformation
+
+traindataFinal <- bake(preparedRecipe, new_data = trainimputeFinal) #Apply transformations
+testdataFinal <- bake(preparedRecipe, new_data = testimputeFinal) #Apply transformations
+
+dim(traindataFinal)
+dim(testdataFinal)
+head(traindataFinal)
 ```
 
 
