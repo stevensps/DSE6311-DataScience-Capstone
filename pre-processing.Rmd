@@ -1,0 +1,285 @@
+---
+title: "Pre-Processing"
+author: "Christopher Rodgers"
+date: "2025-04-10"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+```{r}
+library(haven)
+ library(dplyr)
+ library(tidyr)
+ library(ggplot2)
+ library(gtsummary)
+ library(forcats)
+ library(naniar)
+ library(corrplot)
+ library(stats)
+ library(stringr)
+ library(car)
+ library(reshape2)
+ library(viridis)
+ library(GGally)
+ library(knitr)
+ library(kableExtra)
+ library(scales)
+ library(caret)
+ library(mice)
+```
+
+```{r}
+# Code below imports the data to any person's machine
+ if (!dir.exists("C:/temp")) {
+     dir.create("C:/temp")
+ } # If statement creates temp folder on machine
+ 
+ zipUrl <- "https://www.cdc.gov/brfss/annual_data/2023/files/LLCP2023XPT.zip"
+ zipPath <- path.expand("C:/temp/LLCP2023XPT.zip")
+ if (!file.exists(zipPath)) {
+     download.file(zipUrl, destfile = zipPath)
+ } #Download the file
+ 
+ extractPath <- "C:/temp"
+ sasFile <- file.path(extractPath, "LLCP2023.XPT") 
+ if (!file.exists(sasFile)) {
+     unzip(zipPath, exdir = extractPath)
+ }
+ list.files(extractPath) # Extract, unzip, and make sure file exists
+ 
+ if (file.exists(sasFile)) {
+     brfss_raw <- read_xpt(sasFile)
+     head(brfss_raw)
+ } else {
+     message("File does not exist, check download or unzip process.")
+ } # Read file into R after specifying file variable
+```
+
+```{r}
+names(brfss_raw)
+```
+
+```{r}
+brfss_subset <- brfss_raw %>%
+   select(
+     ment14d   = `_MENT14D`,
+     menthlth  = `MENTHLTH`,
+     hlthpl1   = `_HLTHPL1`,
+     persdoc3  = PERSDOC3,
+     medcost1  = MEDCOST1,
+     checkup1  = CHECKUP1,
+     primins1  = PRIMINS1,
+     addepev3  = ADDEPEV3,
+     acedeprs  = ACEDEPRS,
+     decide    = DECIDE,
+     exerany2  = EXERANY2,
+     pa150r4   = `_PA150R4`,
+     sex       = `_SEX`,
+     age80     = `_AGE80`,
+     race      = `_RACE`,
+     educa     = EDUCA,
+     employ1   = EMPLOY1,
+     marital   = MARITAL,
+     incomg1   = `_INCOMG1`,
+     numadult  = NUMADULT,
+     state     = `_STATE`
+   )
+```
+
+```{r}
+source("calcSplitRatio-3.R")
+ split_ratio <- calcSplitRatio(df = brfss_subset)
+ 
+ set.seed(42)
+ trainIndex <- createDataPartition(brfss_subset$ment14d, p=split_ratio, list=FALSE)
+ 
+ train_df <- brfss_subset[trainIndex, ]
+ test_df <- brfss_subset[-trainIndex, ]
+```
+
+```{r}
+train_df <- train_df %>%
+   mutate(
+     hlthpl1   = na_if(hlthpl1, 9),
+     
+     persdoc3  = na_if(persdoc3, 7),
+     persdoc3  = na_if(persdoc3, 9),
+     
+     medcost1  = na_if(medcost1, 7),
+     medcost1  = na_if(medcost1, 9),
+     
+     checkup1  = na_if(checkup1, 7),
+     checkup1  = na_if(checkup1, 9),
+     
+     primins1  = na_if(primins1, 77),
+     primins1  = na_if(primins1, 99),
+     
+     exerany2  = na_if(exerany2, 7),
+     exerany2  = na_if(exerany2, 9),
+   
+     pa150r4   = na_if(pa150r4, 9)
+   )
+ 
+```
+
+```{r}
+train_df <-  train_df %>%
+   mutate(
+     educa     = na_if(educa, 9),
+     
+     employ1   = na_if(employ1, 9),
+     
+     marital   = na_if(marital, 9),
+     
+     incomg1   = na_if(incomg1, 9),
+   )
+```
+
+```{r}
+train_df <-  train_df %>%
+   mutate(
+     menthlth = ifelse(menthlth == 88, 0, menthlth),
+     menthlth = na_if(menthlth, 77),
+     menthlth = na_if(menthlth, 99))
+ table(train_df$menthlth)
+```
+
+```{r}
+table(train_df$ment14d, useNA = "ifany")
+```
+
+```{r}
+train_df <- train_df %>% 
+   mutate(
+     race = na_if(race, 9)
+   )
+ table(train_df$race, useNA = "ifany")
+```
+
+```{r}
+test_df <- test_df %>%
+   mutate(
+     hlthpl1   = na_if(hlthpl1, 9),
+     
+     persdoc3  = na_if(persdoc3, 7),
+     persdoc3  = na_if(persdoc3, 9),
+     
+     medcost1  = na_if(medcost1, 7),
+     medcost1  = na_if(medcost1, 9),
+     
+     checkup1  = na_if(checkup1, 7),
+     checkup1  = na_if(checkup1, 9),
+     
+     primins1  = na_if(primins1, 77),
+     primins1  = na_if(primins1, 99),
+     
+     exerany2  = na_if(exerany2, 7),
+     exerany2  = na_if(exerany2, 9),
+   
+     pa150r4   = na_if(pa150r4, 9)
+   )
+```
+
+```{r}
+test_df <-  test_df %>%
+   mutate(
+     educa     = na_if(educa, 9),
+     
+     employ1   = na_if(employ1, 9),
+     
+     marital   = na_if(marital, 9),
+     
+     incomg1   = na_if(incomg1, 9),
+   )
+```
+
+```{r}
+test_df <-  test_df %>%
+   mutate(
+     menthlth = ifelse(menthlth == 88, 0, menthlth),
+     menthlth = na_if(menthlth, 77),
+     menthlth = na_if(menthlth, 99))
+ table(test_df$menthlth)
+```
+
+```{r}
+table(test_df$ment14d, useNA = "ifany")
+```
+
+```{r}
+test_df <- test_df %>% 
+  mutate(
+    race = na_if(race, 9)
+  )
+table(test_df$race, useNA = "ifany")
+```
+
+```{r}
+imputedTrain <- readRDS("imputedTrain_rf.rds")
+train_df <- complete(imputedTrain)
+
+imputed_test <- readRDS("imputedTest_pmm.rds")
+test_df <- complete(imputed_test)
+```
+
+
+```{r}
+train_df <- train_df %>%
+  mutate(
+    mh_flag = ifelse(addepev3 == 1 | decide == 1, 1, 0),
+    phys_active = ifelse(exerany2 == 1 & pa150r4 == 1, 1, 0),
+    access_score = (hlthpl1 == 1) + (persdoc3 == 1) + (medcost1 == 2)
+  )
+
+test_df <- test_df %>%
+  mutate(
+    mh_flag = ifelse(addepev3 == 1 | decide == 1, 1, 0),
+    phys_active = ifelse(exerany2 == 1 & pa150r4 == 1, 1, 0),
+    access_score = (hlthpl1 == 1) + (persdoc3 == 1) + (medcost1 == 2)
+  )
+```
+
+```{r}
+train_df <- train_df %>%
+  mutate(ment14d_cat = case_when(
+    ment14d == 0 ~ "None",
+    ment14d <= 13 ~ "Occasional",
+    ment14d >= 14 ~ "Frequent"
+  ))
+
+test_df <- test_df %>%
+  mutate(ment14d_cat = case_when(
+    ment14d == 0 ~ "None",
+    ment14d <= 13 ~ "Occasional",
+    ment14d >= 14 ~ "Frequent"
+  ))
+```
+
+```{r}
+train_df$ment14d_cat <- factor(train_df$ment14d_cat, levels = c("None", "Occasional", "Frequent"))
+test_df$ment14d_cat <- factor(test_df$ment14d_cat, levels = c("None", "Occasional", "Frequent"))
+```
+
+```{r}
+encoding_model <- dummyVars(~ ., data = train_df %>% select(-ment14d_cat))
+train_encoded <- as.data.frame(predict(encoding_model, newdata = train_df))
+test_encoded <- as.data.frame(predict(encoding_model, newdata = test_df))
+```
+
+```{r}
+train_encoded$ment14d_cat <- train_df$ment14d_cat
+test_encoded$ment14d_cat <- test_df$ment14d_cat
+```
+
+```{r}
+pca_input <- train_encoded %>% select(-ment14d_cat) %>% scale()
+pca_result <- prcomp(pca_input, center = TRUE, scale. = TRUE)
+
+plot(pca_result, type = "l", main = "Scree Plot")
+
+summary(pca_result)
+```
+
+
