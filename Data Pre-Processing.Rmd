@@ -310,7 +310,6 @@ head(traindataFinal)
 
 ## Creating Categorical Target Variable ('ment14d_cat')- CR
 ```{r}
-# Categorized target variable
 trainimputeFinal <- trainimputeFinal %>%
   mutate(ment14d_cat = case_when(
     ment14d == 0 ~ "None",
@@ -331,16 +330,13 @@ testimputeFinal$ment14d_cat <- factor(testimputeFinal$ment14d_cat, levels = c("N
 
 ## Principle Component Analysis (PCA) on Scaled Data - CR
 ```{r}
-# Remove rows with any NA/infinite values before PCA
-pca_input <- traindataFinal %>%
+pca_input <- traindataFinal %>%  # Remove rows with any NA/infinite values
   select(-ment14d) %>%
   filter(if_all(everything(), ~ !is.na(.) & is.finite(.))) %>%
   scale()
 
-# Run PCA
 pca_result <- prcomp(pca_input, center = TRUE, scale. = TRUE)
 
-# Scree plot and summary
 plot(pca_result, type = "l", main = "Scree Plot")
 summary(pca_result)
 ```
