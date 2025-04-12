@@ -28,7 +28,7 @@ library(scales)
 ```
 
 
-# Import data
+# Import data - SS
 ```{r}
 # Code below imports the data to any person's machine
 if (!dir.exists("C:/temp")) {
@@ -57,11 +57,11 @@ if (file.exists(sasFile)) {
 
 ```
 
-# Column names
+# Column names - CR
 ```{r}
 names(brfss_raw)
 ```
-# Rename variables
+# Rename variables - CR
 ```{r}
 brfss_subset <- brfss_raw %>%
   select(
@@ -89,11 +89,11 @@ brfss_subset <- brfss_raw %>%
 
 ```
 
-# View data type
+# View data type - CR
 ```{r}
 glimpse(brfss_subset)
 ```
-# Recode
+# Recode - CR
 ```{r}
 brfss_subset <- brfss_subset %>%
   mutate(
@@ -121,7 +121,7 @@ brfss_subset <- brfss_subset %>%
 
 ```
 
-```{r}
+```{r} # CR
 brfss_subset <- brfss_subset %>%
   mutate(
     race      = na_if(race, 77),
@@ -142,7 +142,7 @@ brfss_subset <- brfss_subset %>%
 
 ```
 
-```{r}
+```{r} # CR
 brfss_subset <- brfss_subset %>%
   mutate(
     menthlth = brfss_raw$MENTHLTH,
@@ -167,13 +167,13 @@ brfss_subset <- brfss_subset %>%
   )
 ```
 
-# Check ment14d
+# Check ment14d - CR
 ```{r}
 table(brfss_subset$ment14d, useNA = "ifany")
 
 ```
 
-```{r}
+```{r} #CR
 brfss_subset <- brfss_subset %>%
   mutate(
     ment14d_cat = case_when(
@@ -187,18 +187,18 @@ brfss_subset <- brfss_subset %>%
 
 ```
 
-```{r}
+```{r} - CR
 table(brfss_subset$ment14d_cat, useNA = "ifany")
 ```
 
-# Check hlthpl1, race, incomg1
+# Check hlthpl1, race, incomg1 - CR
 ```{r}
 table(brfss_subset$hlthpl1, useNA = "ifany")
 table(brfss_subset$race, useNA = "ifany")
 table(brfss_subset$incomg1, useNA = "ifany")
 
 ```
-```{r}
+```{r} #CR
 brfss_subset <- brfss_subset %>%
   mutate(
     ment14d = na_if(ment14d, 9)
@@ -206,7 +206,7 @@ brfss_subset <- brfss_subset %>%
 
 ```
 
-```{r}
+```{r} #CR
 brfss_subset <- brfss_subset %>% 
   mutate(
     race = as.numeric(race),
@@ -216,12 +216,12 @@ brfss_subset <- brfss_subset %>%
 
 ```
 
-# Recheck
+# Recheck - CR
 ```{r}
 table(brfss_subset$race, useNA = "ifany")
 ```
 
-# Final fix for Race
+# Final fix for Race - CR
 ```{r}
 brfss_subset <- brfss_subset %>%
   mutate(
@@ -236,7 +236,7 @@ brfss_subset <- brfss_subset %>%
 table(brfss_subset$race, useNA = "ifany")
 
 ```
-# Convert yes/no binary variables to factors
+# Convert yes/no binary variables to factors - CR
 ```{r}
 brfss_subset <- brfss_subset %>%
   mutate(
@@ -249,7 +249,7 @@ brfss_subset <- brfss_subset %>%
 
 ```
 
-# Check conversion
+# Check conversion - CR
 ```{r}
 table(brfss_subset$hlthpl1, useNA = "ifany") #Noting class imbalance
 
@@ -258,7 +258,7 @@ table(brfss_subset$hlthpl1, useNA = "ifany") #Noting class imbalance
 table(brfss_subset$exerany2, useNA = "ifany")
 
 ```
-# Convert multi level categorical variables to labeled factors
+# Convert multi level categorical variables to labeled factors - CR
 ```{r}
 brfss_subset <- brfss_subset %>%
   mutate(
@@ -285,7 +285,7 @@ brfss_subset <- brfss_subset %>%
 
 ```
 
-# Remaining categorical variables
+# Remaining categorical variables - CR
 ```{r}
 brfss_subset <- brfss_subset %>%
   mutate(
@@ -307,7 +307,7 @@ brfss_subset <- brfss_subset %>%
 
 ```
 
-# Check to ensure recoded factor variables
+# Check to ensure recoded factor variables - CR
 ```{r}
 table(brfss_subset$race, useNA = "ifany")
 table(brfss_subset$educa, useNA = "ifany")
@@ -315,7 +315,7 @@ table(brfss_subset$sex, useNA = "ifany")
 table(brfss_subset$employ1, useNA = "ifany")
 
 ```
-# Summary table
+# Summary table - CR
 ```{r}
 brfss_subset %>% 
   select(ment14d, hlthpl1, persdoc3, medcost1, checkup1, primins1,
@@ -330,7 +330,7 @@ brfss_subset %>%
 
 ```
 
-# Stratified summary table hlthpl1
+# Stratified summary table hlthpl1 - CR
 ```{r}
 brfss_subset %>%
   select(ment14d, persdoc3, medcost1, checkup1, primins1, addepev3,
@@ -370,14 +370,14 @@ ggplot(brfss_subset, aes(x = race)) +
   labs(title = "Race Distribution", x = "Race", y = "Count") +
   scale_y_continuous(labels = comma) +  # clean y-axis labels
   theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # rotate x-axis labels
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # rotate x-axis labels BK
 ```
 # Ment14d histogram
 ```{r}
 ggplot(brfss_subset, aes(x = ment14d)) +
   geom_histogram(binwidth = 1, fill = "steelblue", color = "white") +
   labs(title = "Distribution of Poor Mental Health Days", x = "Days", y = "Count") +
-  scale_y_continuous(labels = comma) +  # clean y-axis labels
+  scale_y_continuous(labels = comma) +  # clean y-axis labels BK
   theme_minimal()
 
 ```
@@ -392,6 +392,7 @@ ggplot(brfss_subset, aes(x = hlthpl1, y = ment14d, fill = hlthpl1)) +
   scale_x_discrete(labels = c("No Insurance", "Has Insurance")) +  # Custom x-axis labels if needed
   theme_minimal() +
   theme(legend.position = "none")
+
 ```
 
 #exerany2 bar plot
@@ -399,11 +400,11 @@ ggplot(brfss_subset, aes(x = hlthpl1, y = ment14d, fill = hlthpl1)) +
 ggplot(brfss_subset, aes(x = exerany2)) +
   geom_bar() +
   labs(title = "Exercise Participation", x = "Exercised in Past 30 Days", y = "Count") +
-  scale_y_continuous(labels = comma) +  # clean y-axis labels
+  scale_y_continuous(labels = comma) +  # clean y-axis labels BK
   theme_minimal()
 ```
 
-#incomg1
+#incomg1 - CR
 ```{r}
 ggplot(brfss_subset, aes(x = incomg1)) +
   geom_bar() +
@@ -427,7 +428,7 @@ ggplot(missing_summary, aes(x = reorder(variable, n_miss), y = n_miss)) +
   theme_minimal()
 ```
 
-#collinearity check
+#collinearity check - SS
 ```{r}
 brfss_numeric <- brfss_subset %>%
   select(age80, numadult, state, menthlth, checkup1) %>% 
@@ -437,7 +438,7 @@ corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.8)
 
 ```
 
-# Chi Squared iterative test (in report)
+# Chi Squared iterative test (in report) - SS
 ```{r}
 categoricalVars <- names(brfss_subset)[sapply(brfss_subset, is.factor)]
 chiResults <- list()
@@ -461,7 +462,7 @@ for (i in 1:(length(categoricalVars) - 1)) {
 
 significantchiResult <- Filter(function(x) x$p_value < 0.05, chiResults)
 ```
-# Chi-squared heatmap and table (in report)
+# Chi-squared heatmap and table (in report) - SS
 ```{r}
 chiResultsDF <- do.call(rbind, lapply(chiResults, function(x) {
   data.frame(
@@ -492,7 +493,7 @@ ggplot(melt(heatmapData, na.rm = TRUE), aes(Var1, Var2, fill = value)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) #SS - create heatmap
 ```
 
-## Generate Focused table with top results (in report)
+## Generate Focused table with top results (in report) - SS
 ```{r}
 topResultsHeat <- significantheatResult[order(-significantheatResult$statistic), ][1:10, ]
 print(topResultsHeat) #SS - Table to show only top 10 results based on statistic and p value less than 0.05
@@ -503,13 +504,13 @@ topResultsHeat %>%
 
 ```
 
-# PCA biplot
+# PCA biplot - CR
 ```{r}
 pca_result <- prcomp(brfss_numeric, scale. = TRUE)
 biplot(pca_result, main = "PCA Biplot (Centered & Scaled Variables)")
 ```
 
-# Pearson's Correlation to Measure Numeric
+# Pearson's Correlation to Measure Numeric - SS
 ```{r}
 cor.test(brfss_subset$age80, brfss_subset$numadult, method = "pearson")
 cor.test(brfss_subset$age80, brfss_subset$numadult, method = "spearman")
@@ -517,7 +518,7 @@ cor.test(brfss_subset$age80, brfss_subset$numadult, method = "spearman")
 ```
 
 
-# Generate ggpairs plots to examine collinearity and statistical significance (in report)
+# Generate ggpairs plots to examine collinearity and statistical significance (in report) - SS
 ```{r}
 pairsVars <- brfss_subset[, c("age80", "numadult", "state", "menthlth", "checkup1")]
 ggpairs(pairsVars) +
@@ -527,6 +528,7 @@ ggpairs(pairsVars) +
 ################### descriptive histograms ##################################
 
 ```{r}
+# descriptive histograms BK
 # Histogram for age80
 ggplot(brfss_subset, aes(x = age80)) +
   geom_histogram(binwidth = 5, fill = "darkgreen", color = "white") +
@@ -552,6 +554,7 @@ ggplot(brfss_subset, aes(x = ment14d)) +
 ####################### descriptive statistics ##############################
 
 ```{r}
+# descriptive stats table BK
 brfss_subset %>%
   select(ment14d, age80, numadult) %>%
   summarise(
