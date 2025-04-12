@@ -345,4 +345,79 @@ plot(pca_result, type = "l", main = "Scree Plot")
 summary(pca_result)
 ```
 
+############################ encoding categorical values ############################
+
+```{r}
+# Clean variable names BK
+brfss_subset <- brfss_subset %>% clean_names()
+
+## binary variables (0=no, 1=yes)
+brfss_subset <- brfss_subset %>%
+  mutate(
+    hlthpl1 = ifelse(hlthpl1 == 1, 1, 0),      # Health plan coverage
+    persdoc3 = ifelse(persdoc3 == 1, 1, 0),    # Personal doctor
+    medcost1 = ifelse(medcost1 == 1, 1, 0),    # Could not see doctor due to cost
+    exerany2 = ifelse(exerany2 == 1, 1, 0),    # Physical activity
+    addepev3 = ifelse(addepev3 == 1, 1, 0),    # Ever told you had depressive disorder
+    acedeprs = ifelse(acedeprs == 1, 1, 0),    # ACE: depression exposure
+    decide = ifelse(decide == 1, 1, 0),        # Decision-making difficulty (cognitive decline)
+    pa150r4 = ifelse(pa150r4 == 1, 1, 0)       # Met physical activity guidelines
+  )
+
+## ordinal variables (ordered factor)
+brfss_subset <- brfss_subset %>%
+  mutate(
+    educa = factor(educa, levels = c(1:6), ordered = TRUE),            # Education level
+    incomg1 = factor(incomg1, levels = 1:8, ordered = TRUE),           # Income group
+    checkup1 = factor(checkup1, levels = c(4,3,2,1), ordered = TRUE),  # Last checkup (4 = Never → 1 = <1 year)
+    marital = factor(marital, levels = c(5,6,3,4,1,2), ordered = TRUE),# Marital status, loosely ordered
+    age80 = as.numeric(age80)                                          # Continuous, but sometimes treated as ordinal
+  )
+
+## nominal variables (unordered categories as factors)
+brfss_subset <- brfss_subset %>%
+  mutate(
+    sex = factor(sex),               # Sex: 1 = Male, 2 = Female
+    race = factor(race),             # Race/Ethnicity categories
+    employ1 = factor(employ1),       # Employment status
+    primins1 = factor(primins1),     # Primary insurance type
+    numadult = as.numeric(numadult)  # # of adults in household (can leave as numeric)
+  )
+
+## check how values are coded
+table(brfss_subset$hlthpl1, useNA = "ifany")
+```
+
+################################ one-hot encoding #######################################
+
+```{r}
+# Ensure categorical variables are factors BK
+brfss_subset <- brfss_subset %>%
+  mutate(
+    hlthpl1 = factor(hlthpl1),
+    persdoc3 = factor(persdoc3),
+    medcost1 = factor(medcost1),
+    checkup1 = factor(checkup1),
+    primins1 = factor(primins1),
+    addepev3 = factor(addepev3),
+    acedeprs = factor(acedeprs),
+    decide = factor(decide),
+    exerany2 = factor(exerany2),
+    pa150r4 = factor(pa150r4),
+    sex = factor(sex),
+    race = factor(race),
+    educa = factor(educa),
+    employ1 = factor(employ1),
+    marital = factor(marital),
+    incomg1 = factor(incomg1)
+  )
+
+# One-hot encode all factor variables
+brfss_encoded <- fastDummies::dummy_cols(
+  brfss_subset,
+  remove_first_dummy = TRUE,   # Avoid multicollinearity
+  remove_selected_columns = TRUE  # Drop original factor columns
+)
+```
+
 
