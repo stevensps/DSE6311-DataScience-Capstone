@@ -163,11 +163,22 @@ brfss_subset <- brfss_subset %>%
   )
 
 # One-hot encode all factor variables
+# Separate response variable
+response_var <- brfss_subset$ment14d
+
+# Remove it temporarily from dataset to avoid encoding
+brfss_subset_no_response <- brfss_subset %>% select(-ment14d)
+
+# Encode predictors only
 brfss_encoded <- fastDummies::dummy_cols(
-  brfss_subset,
-  remove_first_dummy = TRUE,   # Avoid multicollinearity
-  remove_selected_columns = TRUE  # Drop original factor columns
+  brfss_subset_no_response,
+  remove_first_dummy = TRUE,
+  remove_selected_columns = TRUE
 )
+
+# Add response variable back
+brfss_encoded$ment14d <- response_var
+
 ```
 
 # Initial Data Split - CR and SS
