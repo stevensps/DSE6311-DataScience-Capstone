@@ -57,11 +57,11 @@ if (file.exists(sasFile)) {
 
 ```
 
-# Column names
+# Column names - CR
 ```{r}
 names(brfss_raw)
 ```
-# Rename variables
+# Rename variables - CR
 ```{r}
 brfss_subset <- brfss_raw %>%
   select(
@@ -89,11 +89,11 @@ brfss_subset <- brfss_raw %>%
 
 ```
 
-# View data type
+# View data type - CR
 ```{r}
 glimpse(brfss_subset)
 ```
-# Recode
+# Recode - CR
 ```{r}
 brfss_subset <- brfss_subset %>%
   mutate(
@@ -121,7 +121,7 @@ brfss_subset <- brfss_subset %>%
 
 ```
 
-```{r}
+```{r} # CR
 brfss_subset <- brfss_subset %>%
   mutate(
     race      = na_if(race, 77),
@@ -142,7 +142,7 @@ brfss_subset <- brfss_subset %>%
 
 ```
 
-```{r}
+```{r} # CR
 brfss_subset <- brfss_subset %>%
   mutate(
     menthlth = brfss_raw$MENTHLTH,
@@ -167,13 +167,13 @@ brfss_subset <- brfss_subset %>%
   )
 ```
 
-# Check ment14d
+# Check ment14d - CR
 ```{r}
 table(brfss_subset$ment14d, useNA = "ifany")
 
 ```
 
-```{r}
+```{r} #CR
 brfss_subset <- brfss_subset %>%
   mutate(
     ment14d_cat = case_when(
@@ -187,18 +187,18 @@ brfss_subset <- brfss_subset %>%
 
 ```
 
-```{r}
+```{r} - CR
 table(brfss_subset$ment14d_cat, useNA = "ifany")
 ```
 
-# Check hlthpl1, race, incomg1
+# Check hlthpl1, race, incomg1 - CR
 ```{r}
 table(brfss_subset$hlthpl1, useNA = "ifany")
 table(brfss_subset$race, useNA = "ifany")
 table(brfss_subset$incomg1, useNA = "ifany")
 
 ```
-```{r}
+```{r} #CR
 brfss_subset <- brfss_subset %>%
   mutate(
     ment14d = na_if(ment14d, 9)
@@ -206,7 +206,7 @@ brfss_subset <- brfss_subset %>%
 
 ```
 
-```{r}
+```{r} #CR
 brfss_subset <- brfss_subset %>% 
   mutate(
     race = as.numeric(race),
@@ -216,12 +216,12 @@ brfss_subset <- brfss_subset %>%
 
 ```
 
-# Recheck
+# Recheck - CR
 ```{r}
 table(brfss_subset$race, useNA = "ifany")
 ```
 
-# Final fix for Race
+# Final fix for Race - CR
 ```{r}
 brfss_subset <- brfss_subset %>%
   mutate(
@@ -236,7 +236,7 @@ brfss_subset <- brfss_subset %>%
 table(brfss_subset$race, useNA = "ifany")
 
 ```
-# Convert yes/no binary variables to factors
+# Convert yes/no binary variables to factors - CR
 ```{r}
 brfss_subset <- brfss_subset %>%
   mutate(
@@ -249,7 +249,7 @@ brfss_subset <- brfss_subset %>%
 
 ```
 
-# Check conversion
+# Check conversion - CR
 ```{r}
 table(brfss_subset$hlthpl1, useNA = "ifany") #Noting class imbalance
 
@@ -258,7 +258,7 @@ table(brfss_subset$hlthpl1, useNA = "ifany") #Noting class imbalance
 table(brfss_subset$exerany2, useNA = "ifany")
 
 ```
-# Convert multi level categorical variables to labeled factors
+# Convert multi level categorical variables to labeled factors - CR
 ```{r}
 brfss_subset <- brfss_subset %>%
   mutate(
@@ -285,7 +285,7 @@ brfss_subset <- brfss_subset %>%
 
 ```
 
-# Remaining categorical variables
+# Remaining categorical variables - CR
 ```{r}
 brfss_subset <- brfss_subset %>%
   mutate(
@@ -307,7 +307,7 @@ brfss_subset <- brfss_subset %>%
 
 ```
 
-# Check to ensure recoded factor variables
+# Check to ensure recoded factor variables - CR
 ```{r}
 table(brfss_subset$race, useNA = "ifany")
 table(brfss_subset$educa, useNA = "ifany")
@@ -315,7 +315,7 @@ table(brfss_subset$sex, useNA = "ifany")
 table(brfss_subset$employ1, useNA = "ifany")
 
 ```
-# Summary table
+# Summary table - CR
 ```{r}
 brfss_subset %>% 
   select(ment14d, hlthpl1, persdoc3, medcost1, checkup1, primins1,
@@ -330,7 +330,7 @@ brfss_subset %>%
 
 ```
 
-# Stratified summary table hlthpl1
+# Stratified summary table hlthpl1 - CR
 ```{r}
 brfss_subset %>%
   select(ment14d, persdoc3, medcost1, checkup1, primins1, addepev3,
@@ -370,14 +370,14 @@ ggplot(brfss_subset, aes(x = race)) +
   labs(title = "Race Distribution", x = "Race", y = "Count") +
   scale_y_continuous(labels = comma) +  # clean y-axis labels
   theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # rotate x-axis labels
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # rotate x-axis labels BK
 ```
 # Ment14d histogram
 ```{r}
 ggplot(brfss_subset, aes(x = ment14d)) +
   geom_histogram(binwidth = 1, fill = "steelblue", color = "white") +
   labs(title = "Distribution of Poor Mental Health Days", x = "Days", y = "Count") +
-  scale_y_continuous(labels = comma) +  # clean y-axis labels
+  scale_y_continuous(labels = comma) +  # clean y-axis labels BK
   theme_minimal()
 
 ```
@@ -386,7 +386,7 @@ ggplot(brfss_subset, aes(x = ment14d)) +
 ggplot(brfss_subset, aes(x = ment14d)) +
   geom_histogram(binwidth = 1, fill = "steelblue", color = "white") +
   labs(title = "Distribution of Poor Mental Health Days", x = "Days", y = "Count") +
-  scale_y_continuous(labels = comma) +  # clean y-axis labels
+  scale_y_continuous(labels = comma) +  # clean y-axis labels BK
   theme_minimal()
 ```
 
@@ -395,11 +395,11 @@ ggplot(brfss_subset, aes(x = ment14d)) +
 ggplot(brfss_subset, aes(x = exerany2)) +
   geom_bar() +
   labs(title = "Exercise Participation", x = "Exercised in Past 30 Days", y = "Count") +
-  scale_y_continuous(labels = comma) +  # clean y-axis labels
+  scale_y_continuous(labels = comma) +  # clean y-axis labels BK
   theme_minimal()
 ```
 
-#incomg1
+#incomg1 - CR
 ```{r}
 ggplot(brfss_subset, aes(x = incomg1)) +
   geom_bar() +
@@ -499,7 +499,7 @@ topResultsHeat %>%
 
 ```
 
-# PCA biplot
+# PCA biplot - CR
 ```{r}
 pca_result <- prcomp(brfss_numeric, scale. = TRUE)
 biplot(pca_result, main = "PCA Biplot (Centered & Scaled Variables)")
@@ -523,6 +523,7 @@ ggpairs(pairsVars) +
 ################### descriptive histograms ##################################
 
 ```{r}
+# descriptive histograms BK
 # Histogram for age80
 ggplot(brfss_subset, aes(x = age80)) +
   geom_histogram(binwidth = 5, fill = "darkgreen", color = "white") +
@@ -548,6 +549,7 @@ ggplot(brfss_subset, aes(x = ment14d)) +
 ####################### descriptive statistics ##############################
 
 ```{r}
+# descriptive stats table BK
 brfss_subset %>%
   select(ment14d, age80, numadult) %>%
   summarise(
