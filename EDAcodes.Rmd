@@ -25,6 +25,8 @@ library(GGally)
 library(knitr)
 library(kableExtra)
 library(scales)
+library(janitor)
+library(fastDummies)
 ```
 
 
@@ -576,7 +578,7 @@ brfss_subset %>%
   )
 ```
 
-############################ encoding categorical values ############################
+
 ```{r}
 # Stratified Summary Statistics (mean, median, sd) of ment14 by insurance status  BK
 summary_stats <- brfss_subset %>%
@@ -599,53 +601,77 @@ print(summary_stats)
 # Export the summary statistics table to a CSV file
 write.csv(summary_stats, "summary_statistics.csv", row.names = FALSE)
 ```
-```{r}
-## BK
-library(dplyr)
-library(janitor)  # for clean_names()
+############################ encoding categorical values ############################
 
-# Clean variable names (optional but helpful)
+```{r}
+# Clean variable names BK
 brfss_subset <- brfss_subset %>% clean_names()
 
-# Binary Variables → Encode as 0 = No, 1 = Yes
+## binary variables (0=no, 1=yes)
 brfss_subset <- brfss_subset %>%
   mutate(
-    hlthpl1 = ifelse(hlthpl1 == 1, 1, 0),
-    persdoc3 = ifelse(persdoc3 == 1, 1, 0),
-    medcost1 = ifelse(medcost1 == 1, 1, 0),
-    exerany2 = ifelse(exerany2 == 1, 1, 0)
+    hlthpl1 = ifelse(hlthpl1 == 1, 1, 0),      # Health plan coverage
+    persdoc3 = ifelse(persdoc3 == 1, 1, 0),    # Personal doctor
+    medcost1 = ifelse(medcost1 == 1, 1, 0),    # Could not see doctor due to cost
+    exerany2 = ifelse(exerany2 == 1, 1, 0),    # Physical activity
+    addepev3 = ifelse(addepev3 == 1, 1, 0),    # Ever told you had depressive disorder
+    acedeprs = ifelse(acedeprs == 1, 1, 0),    # ACE: depression exposure
+    decide = ifelse(decide == 1, 1, 0),        # Decision-making difficulty (cognitive decline)
+    pa150r4 = ifelse(pa150r4 == 1, 1, 0)       # Met physical activity guidelines
   )
 
-# Ordinal Variables → Encode as ordered factors
+## ordinal variables (ordered factor)
 brfss_subset <- brfss_subset %>%
   mutate(
-    educa = factor(educa, levels = c(1,2,3,4,5,6), ordered = TRUE),
-    incomg1 = factor(incomg1, levels = c(1,2,3,4,5,6,7,8), ordered = TRUE),
-    checkup1 = factor(checkup1, levels = c(4,3,2,1), ordered = TRUE), # reverse order if necessary
-    marital = factor(marital, levels = c(5,6,3,4,1,2), ordered = TRUE) # adjust order as appropriate
+    educa = factor(educa, levels = c(1:6), ordered = TRUE),            # Education level
+    incomg1 = factor(incomg1, levels = 1:8, ordered = TRUE),           # Income group
+    checkup1 = factor(checkup1, levels = c(4,3,2,1), ordered = TRUE),  # Last checkup (4 = Never → 1 = <1 year)
+    marital = factor(marital, levels = c(5,6,3,4,1,2), ordered = TRUE),# Marital status, loosely ordered
+    age80 = as.numeric(age80)                                          # Continuous, but sometimes treated as ordinal
   )
 
-# Nominal Variables → Convert to factor for one-hot encoding later if needed
+## nominal variables (unordered categories as factors)
 brfss_subset <- brfss_subset %>%
   mutate(
-    sex = factor(sex),
-    race = factor(race),
-    primins1 = factor(primins1),
-    employ1 = factor(employ1)
+    sex = factor(sex),               # Sex: 1 = Male, 2 = Female
+    race = factor(race),             # Race/Ethnicity categories
+    employ1 = factor(employ1),       # Employment status
+    primins1 = factor(primins1),     # Primary insurance type
+    numadult = as.numeric(numadult)  # # of adults in household (can leave as numeric)
   )
-```
 
-```{r}
-
-## BK 
+## check how values are coded
 table(brfss_subset$hlthpl1, useNA = "ifany")
 ```
 
 ################################ one-hot encoding #######################################
-```{r}
 
-## BK
-library(fastDummies)
- # convert nominal variables to dummy variables
-brfss_subset <- dummy_cols(brfss_subset, select_columns = c("sex", "race", "primins1", "employ1"), remove_first_dummy = TRUE, remove_selected_columns = TRUE)
+```{r}
+# Ensure categorical variables are factors BK
+brfss_subset <- brfss_subset %>%
+  mutate(
+    hlthpl1 = factor(hlthpl1),
+    persdoc3 = factor(persdoc3),
+    medcost1 = factor(medcost1),
+    checkup1 = factor(checkup1),
+    primins1 = factor(primins1),
+    addepev3 = factor(addepev3),
+    acedeprs = factor(acedeprs),
+    decide = factor(decide),
+    exerany2 = factor(exerany2),
+    pa150r4 = factor(pa150r4),
+    sex = factor(sex),
+    race = factor(race),
+    educa = factor(educa),
+    employ1 = factor(employ1),
+    marital = factor(marital),
+    incomg1 = factor(incomg1)
+  )
+
+# One-hot encode all factor variables
+brfss_encoded <- fastDummies::dummy_cols(
+  brfss_subset,
+  remove_first_dummy = TRUE,   # Avoid multicollinearity
+  remove_selected_columns = TRUE  # Drop original factor columns
+)
 ```
