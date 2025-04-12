@@ -28,7 +28,7 @@ library(scales)
 ```
 
 
-# Import data
+# Import data - SS
 ```{r}
 # Code below imports the data to any person's machine
 if (!dir.exists("C:/temp")) {
@@ -423,7 +423,7 @@ ggplot(missing_summary, aes(x = reorder(variable, n_miss), y = n_miss)) +
   theme_minimal()
 ```
 
-#collinearity check
+#collinearity check - SS
 ```{r}
 brfss_numeric <- brfss_subset %>%
   select(age80, numadult, state, menthlth, checkup1) %>% 
@@ -433,7 +433,7 @@ corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.8)
 
 ```
 
-# Chi Squared iterative test (in report)
+# Chi Squared iterative test (in report) - SS
 ```{r}
 categoricalVars <- names(brfss_subset)[sapply(brfss_subset, is.factor)]
 chiResults <- list()
@@ -457,7 +457,7 @@ for (i in 1:(length(categoricalVars) - 1)) {
 
 significantchiResult <- Filter(function(x) x$p_value < 0.05, chiResults)
 ```
-# Chi-squared heatmap and table (in report)
+# Chi-squared heatmap and table (in report) - SS
 ```{r}
 chiResultsDF <- do.call(rbind, lapply(chiResults, function(x) {
   data.frame(
@@ -488,7 +488,7 @@ ggplot(melt(heatmapData, na.rm = TRUE), aes(Var1, Var2, fill = value)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) #SS - create heatmap
 ```
 
-## Generate Focused table with top results (in report)
+## Generate Focused table with top results (in report) - SS
 ```{r}
 topResultsHeat <- significantheatResult[order(-significantheatResult$statistic), ][1:10, ]
 print(topResultsHeat) #SS - Table to show only top 10 results based on statistic and p value less than 0.05
@@ -505,7 +505,7 @@ pca_result <- prcomp(brfss_numeric, scale. = TRUE)
 biplot(pca_result, main = "PCA Biplot (Centered & Scaled Variables)")
 ```
 
-# Pearson's Correlation to Measure Numeric
+# Pearson's Correlation to Measure Numeric - SS
 ```{r}
 cor.test(brfss_subset$age80, brfss_subset$numadult, method = "pearson")
 cor.test(brfss_subset$age80, brfss_subset$numadult, method = "spearman")
@@ -513,7 +513,7 @@ cor.test(brfss_subset$age80, brfss_subset$numadult, method = "spearman")
 ```
 
 
-# Generate ggpairs plots to examine collinearity and statistical significance (in report)
+# Generate ggpairs plots to examine collinearity and statistical significance (in report) - SS
 ```{r}
 pairsVars <- brfss_subset[, c("age80", "numadult", "state", "menthlth", "checkup1")]
 ggpairs(pairsVars) +
