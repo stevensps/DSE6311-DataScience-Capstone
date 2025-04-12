@@ -198,24 +198,24 @@ test_df <- brfss_subset[-trainIndex, ]
 ```{r}
 train_df <- train_df %>%
   mutate(
-    hlthpl1   = na_if(hlthpl1, 9),
+    hlthpl1 = na_if(as.numeric(as.character(hlthpl1)), 9),
     
-    persdoc3  = na_if(persdoc3, 7),
-    persdoc3  = na_if(persdoc3, 9),
+    persdoc3 = na_if(as.numeric(as.character(persdoc3)), 7),
+    persdoc3 = na_if(persdoc3, 9),
     
-    medcost1  = na_if(medcost1, 7),
-    medcost1  = na_if(medcost1, 9),
+    medcost1 = na_if(as.numeric(as.character(medcost1)), 7),
+    medcost1 = na_if(medcost1, 9),
     
-    checkup1  = na_if(checkup1, 7),
-    checkup1  = na_if(checkup1, 9),
+    checkup1 = na_if(as.numeric(as.character(checkup1)), 7),
+    checkup1 = na_if(checkup1, 9),
     
-    primins1  = na_if(primins1, 77),
-    primins1  = na_if(primins1, 99),
+    primins1 = na_if(as.numeric(as.character(primins1)), 77),
+    primins1 = na_if(primins1, 99),
     
-    exerany2  = na_if(exerany2, 7),
-    exerany2  = na_if(exerany2, 9),
-  
-    pa150r4   = na_if(pa150r4, 9)
+    exerany2 = na_if(as.numeric(as.character(exerany2)), 7),
+    exerany2 = na_if(exerany2, 9),
+    
+    pa150r4 = na_if(as.numeric(as.character(pa150r4)), 9)
   )
 
 ```
@@ -223,13 +223,13 @@ train_df <- train_df %>%
 ```{r}
  train_df <-  train_df %>%
   mutate(
-    educa     = na_if(educa, 9),
+    educa     = na_if(as.numeric(as.character(educa)), 9),
     
-    employ1   = na_if(employ1, 9),
+    employ1   = na_if(as.numeric(as.character(employ1)), 9),
     
-    marital   = na_if(marital, 9),
+    marital   = na_if(as.numeric(as.character(marital)), 9),
     
-    incomg1   = na_if(incomg1, 9),
+    incomg1   = na_if(as.numeric(as.character(incomg1)), 9),
   )
 
 ```
@@ -242,6 +242,7 @@ train_df <- train_df %>%
     menthlth = na_if(menthlth, 99))
 table(train_df$menthlth)
 ```
+
 ```{r}
 train_df <- train_df %>%
   mutate(
@@ -257,7 +258,7 @@ table(train_df$ment14d, useNA = "ifany")
 ```{r}
 train_df <- train_df %>% 
   mutate(
-    race = na_if(race, 9)
+    race = na_if(as.numeric(as.character(race)), 9)
   )
 table(train_df$race, useNA = "ifany")
 ```
@@ -266,40 +267,38 @@ table(train_df$race, useNA = "ifany")
 ```{r}
 test_df <- test_df %>%
   mutate(
-    hlthpl1   = na_if(hlthpl1, 9),
-    
-    persdoc3  = na_if(persdoc3, 7),
-    persdoc3  = na_if(persdoc3, 9),
-    
-    medcost1  = na_if(medcost1, 7),
-    medcost1  = na_if(medcost1, 9),
-    
-    checkup1  = na_if(checkup1, 7),
-    checkup1  = na_if(checkup1, 9),
-    
-    primins1  = na_if(primins1, 77),
-    primins1  = na_if(primins1, 99),
-    
-    exerany2  = na_if(exerany2, 7),
-    exerany2  = na_if(exerany2, 9),
-  
-    pa150r4   = na_if(pa150r4, 9)
-  )
+    hlthpl1   = na_if(as.numeric(as.character(hlthpl1)), 9),
 
+    persdoc3  = na_if(as.numeric(as.character(persdoc3)), 7),
+    persdoc3  = na_if(persdoc3, 9),
+
+    medcost1  = na_if(as.numeric(as.character(medcost1)), 7),
+    medcost1  = na_if(medcost1, 9),
+
+    checkup1  = na_if(as.numeric(as.character(checkup1)), 7),
+    checkup1  = na_if(checkup1, 9),
+
+    primins1  = na_if(as.numeric(as.character(primins1)), 77),
+    primins1  = na_if(primins1, 99),
+
+    exerany2  = na_if(as.numeric(as.character(exerany2)), 7),
+    exerany2  = na_if(exerany2, 9),
+
+    pa150r4   = na_if(as.numeric(as.character(pa150r4)), 9)
+  )
 ```
 
 ```{r}
 test_df <-  test_df %>%
   mutate(
-    educa     = na_if(educa, 9),
+    educa     = na_if(as.numeric(as.character(educa)), 9),
     
-    employ1   = na_if(employ1, 9),
+    employ1   = na_if(as.numeric(as.character(employ1)), 9),
     
-    marital   = na_if(marital, 9),
+    marital   = na_if(as.numeric(as.character(marital)), 9),
     
-    incomg1   = na_if(incomg1, 9),
+    incomg1   = na_if(as.numeric(as.character(incomg1)), 9),
   )
-
 ```
 
 ```{r}
@@ -326,27 +325,27 @@ table(test_df$ment14d, useNA = "ifany")
 ```{r}
 test_df <- test_df %>% 
   mutate(
-    race = na_if(race, 9)
+    race = na_if(as.numeric(as.character(race)), 9)
   )
 table(test_df$race, useNA = "ifany")
 ```
 
 # Encode Train Variables - BK
-```{r}
-encodeTrain <- dummy_cols(train_df, #Select multilevel Nominal predictors for encoding
-                       select_columns = c("race", "primins1", "employ1",
-                                          "marital", "incomg1", "state"),
-                       remove_first_dummy = TRUE, #Avoids dummy variable trap
-                       remove_selected_columns = TRUE) #Removes original, un-encoded columns
-```
+#```{r}
+#encodeTrain <- dummy_cols(train_df, #Select multilevel Nominal predictors for encoding
+#                       select_columns = c("race", "primins1", "employ1",
+#                                          "marital", "incomg1", "state"),
+#                       remove_first_dummy = TRUE, #Avoids dummy variable trap
+#                       remove_selected_columns = TRUE) #Removes original, un-encoded columns
+#```
 # Encode Test Variables - BK
-```{r}
-encodeTest <- dummy_cols(test_df, 
-                       select_columns = c("race", "primins1", "employ1",
-                                          "marital", "incomg1", "state"),
-                       remove_first_dummy = TRUE, 
-                       remove_selected_columns = TRUE)
-```
+#```{r}
+#encodeTest <- dummy_cols(test_df, 
+#                       select_columns = c("race", "primins1", "employ1",
+#                                          "marital", "incomg1", "state"),
+#                       remove_first_dummy = TRUE, 
+#                       remove_selected_columns = TRUE)
+#```
 
 
 # Impute Missing Values - CR and SS
