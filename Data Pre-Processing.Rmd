@@ -1,3 +1,4 @@
+
 ---
 title: "Data Pre-Processing"
 author: "Steven S., Ben K., and Chris R."
@@ -108,7 +109,7 @@ brfss_subset <- brfss_subset %>%
 table(brfss_subset$ment14d, useNA = "ifany")
 ```
 
-# Split State into Region
+# Split State into Region - CR
 ```{r}
 region_map <- data.frame(
   state = c(1, 2, 4, 5, 6, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 19, 20, 
@@ -125,9 +126,9 @@ region_map <- data.frame(
              "Northeast", "South", "West", "South", "Midwest", "West", 
              "Territories", "Territories", "Territories") 
 )
-
+#Merge region data into main dataset based on state codes
 brfss_subset <- merge(brfss_subset, region_map, by.x = "state", by.y = "state", all.x = TRUE)
-brfss_subset$region <- as.factor(brfss_subset$region)
+brfss_subset$region <- as.factor(brfss_subset$region) #Convert region to factor
 ```
 
 #############Data Preprocessing#############
@@ -511,18 +512,18 @@ head(traindataFinal)
 
 ## Creating Categorical Target Variable ('ment14d_cat')- CR
 ```{r}
-trainimputeFinal <- trainimputeFinal %>%
+trainimputeFinal <- trainimputeFinal %>% #Categorize mental health days into three levels
   mutate(ment14d_cat = case_when(
-    ment14d == 0 ~ "None",
-    ment14d <= 13 ~ "Occasional",
-    ment14d >= 14 ~ "Frequent"
+    ment14d == 0 ~ "None", #Zero days
+    ment14d <= 13 ~ "Occasional", #1-13 days
+    ment14d >= 14 ~ "Frequent" #14+ days
   ))
 
-testimputeFinal <- testimputeFinal %>%
+testimputeFinal <- testimputeFinal %>% #Apply same categorization to test set
   mutate(ment14d_cat = case_when(
-    ment14d == 0 ~ "None",
-    ment14d <= 13 ~ "Occasional",
-    ment14d >= 14 ~ "Frequent"
+    ment14d == 0 ~ "None", #Zero days
+    ment14d <= 13 ~ "Occasional", #1-13 days
+    ment14d >= 14 ~ "Frequent" #14+ days
   ))
 
 trainimputeFinal$ment14d_cat <- factor(trainimputeFinal$ment14d_cat, levels = c("None", "Occasional", "Frequent"))
@@ -531,17 +532,13 @@ testimputeFinal$ment14d_cat <- factor(testimputeFinal$ment14d_cat, levels = c("N
 
 ## Principle Component Analysis (PCA) on Scaled Data - CR
 ```{r}
-pca_input <- traindataFinal %>%  # Remove rows with any NA/infinite values
+pca_input <- traindataFinal %>%  #Remove rows with any NA/infinite values
   select(where(is.numeric)) %>%
   filter(if_all(everything(), ~ !is.na(.) & is.finite(.))) %>%
   scale()
 
-pca_result <- prcomp(pca_input, center = TRUE, scale. = TRUE)
+pca_result <- prcomp(pca_input, center = TRUE, scale. = TRUE) #PCA with centering and scaling
 
-plot(pca_result, type = "l", main = "Scree Plot")
-summary(pca_result)
+plot(pca_result, type = "l", main = "Scree Plot") #Visualize variance by each principle component
+summary(pca_result) #Output cumulative variance to decide how many components to retain
 ```
-
-
-
-
