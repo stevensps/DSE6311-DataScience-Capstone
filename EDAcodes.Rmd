@@ -1,6 +1,6 @@
 ---
 title: "EDA"
-author: "Christopher Rodgers"
+author: "Steven S., Ben K., and Chris R."
 date: "2025-04-02"
 output:
   pdf_document: default
