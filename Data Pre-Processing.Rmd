@@ -28,6 +28,7 @@ library(mice)
 library(fastDummies)
 library(tidymodels)
 library(parallel)
+library(janitor)
 ```
 
 
@@ -90,7 +91,43 @@ brfss_subset <- brfss_raw %>%
     numadult  = NUMADULT,
     state     = `_STATE`
   )
+```
 
+```{r}
+brfss_subset <- brfss_subset %>%
+  mutate(
+    ment14d = na_if(ment14d, 9)
+  )
+```
+
+# Drop N/A and Check ment14d
+```{r}
+brfss_subset <- brfss_subset %>%
+  filter(!is.na(ment14d))
+
+table(brfss_subset$ment14d, useNA = "ifany")
+```
+
+# Split State into Region - CR
+```{r}
+region_map <- data.frame(
+  state = c(1, 2, 4, 5, 6, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 19, 20, 
+                 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 
+                 37, 38, 39, 40, 41, 44, 45, 46, 47, 48, 49, 50, 51, 53, 54, 
+                 55, 56, 66, 72, 78), 
+  region = c("South", "West", "West", "South", "West", "West", "Northeast", 
+             "South", "South", "South", "South", "West", "West", "Midwest", 
+             "Midwest", "Midwest", "Midwest", "South", "Northeast", 
+             "South", "Northeast", "Midwest", "Midwest", "South", "Midwest", 
+             "West", "Midwest", "West", "Northeast", "Northeast", "West", 
+             "Northeast", "South", "Midwest", "Midwest", "South", "West", 
+             "Northeast", "South", "West", "South", "South", "West", 
+             "Northeast", "South", "West", "South", "Midwest", "West", 
+             "Territories", "Territories", "Territories") 
+)
+#Merge region data into main dataset based on state codes
+brfss_subset <- merge(brfss_subset, region_map, by.x = "state", by.y = "state", all.x = TRUE)
+brfss_subset$region <- as.factor(brfss_subset$region) #Convert region to factor
 ```
 
 #############Data Preprocessing#############
@@ -112,24 +149,24 @@ test_df <- brfss_subset[-trainIndex, ]
 ```{r}
 train_df <- train_df %>%
   mutate(
-    hlthpl1   = na_if(hlthpl1, 9),
+    hlthpl1 = na_if(as.numeric(as.character(hlthpl1)), 9),
     
-    persdoc3  = na_if(persdoc3, 7),
-    persdoc3  = na_if(persdoc3, 9),
+    persdoc3 = na_if(as.numeric(as.character(persdoc3)), 7),
+    persdoc3 = na_if(persdoc3, 9),
     
-    medcost1  = na_if(medcost1, 7),
-    medcost1  = na_if(medcost1, 9),
+    medcost1 = na_if(as.numeric(as.character(medcost1)), 7),
+    medcost1 = na_if(medcost1, 9),
     
-    checkup1  = na_if(checkup1, 7),
-    checkup1  = na_if(checkup1, 9),
+    checkup1 = na_if(as.numeric(as.character(checkup1)), 7),
+    checkup1 = na_if(checkup1, 9),
     
-    primins1  = na_if(primins1, 77),
-    primins1  = na_if(primins1, 99),
+    primins1 = na_if(as.numeric(as.character(primins1)), 77),
+    primins1 = na_if(primins1, 99),
     
-    exerany2  = na_if(exerany2, 7),
-    exerany2  = na_if(exerany2, 9),
-  
-    pa150r4   = na_if(pa150r4, 9)
+    exerany2 = na_if(as.numeric(as.character(exerany2)), 7),
+    exerany2 = na_if(exerany2, 9),
+    
+    pa150r4 = na_if(as.numeric(as.character(pa150r4)), 9)
   )
 
 ```
@@ -137,13 +174,13 @@ train_df <- train_df %>%
 ```{r}
  train_df <-  train_df %>%
   mutate(
-    educa     = na_if(educa, 9),
+    educa     = na_if(as.numeric(as.character(educa)), 9),
     
-    employ1   = na_if(employ1, 9),
+    employ1   = na_if(as.numeric(as.character(employ1)), 9),
     
-    marital   = na_if(marital, 9),
+    marital   = na_if(as.numeric(as.character(marital)), 9),
     
-    incomg1   = na_if(incomg1, 9),
+    incomg1   = na_if(as.numeric(as.character(incomg1)), 9),
   )
 
 ```
@@ -156,14 +193,8 @@ train_df <- train_df %>%
     menthlth = na_if(menthlth, 99))
 table(train_df$menthlth)
 ```
-```{r}
-train_df <- train_df %>%
-  mutate(
-    ment14d = na_if(ment14d, 9)
-  )
-```
 
-# Check ment14d
+#Check ment14d
 ```{r}
 table(train_df$ment14d, useNA = "ifany")
 ```
@@ -171,7 +202,7 @@ table(train_df$ment14d, useNA = "ifany")
 ```{r}
 train_df <- train_df %>% 
   mutate(
-    race = na_if(race, 9)
+    race = na_if(as.numeric(as.character(race)), 9)
   )
 table(train_df$race, useNA = "ifany")
 ```
@@ -180,40 +211,38 @@ table(train_df$race, useNA = "ifany")
 ```{r}
 test_df <- test_df %>%
   mutate(
-    hlthpl1   = na_if(hlthpl1, 9),
-    
-    persdoc3  = na_if(persdoc3, 7),
-    persdoc3  = na_if(persdoc3, 9),
-    
-    medcost1  = na_if(medcost1, 7),
-    medcost1  = na_if(medcost1, 9),
-    
-    checkup1  = na_if(checkup1, 7),
-    checkup1  = na_if(checkup1, 9),
-    
-    primins1  = na_if(primins1, 77),
-    primins1  = na_if(primins1, 99),
-    
-    exerany2  = na_if(exerany2, 7),
-    exerany2  = na_if(exerany2, 9),
-  
-    pa150r4   = na_if(pa150r4, 9)
-  )
+    hlthpl1   = na_if(as.numeric(as.character(hlthpl1)), 9),
 
+    persdoc3  = na_if(as.numeric(as.character(persdoc3)), 7),
+    persdoc3  = na_if(persdoc3, 9),
+
+    medcost1  = na_if(as.numeric(as.character(medcost1)), 7),
+    medcost1  = na_if(medcost1, 9),
+
+    checkup1  = na_if(as.numeric(as.character(checkup1)), 7),
+    checkup1  = na_if(checkup1, 9),
+
+    primins1  = na_if(as.numeric(as.character(primins1)), 77),
+    primins1  = na_if(primins1, 99),
+
+    exerany2  = na_if(as.numeric(as.character(exerany2)), 7),
+    exerany2  = na_if(exerany2, 9),
+
+    pa150r4   = na_if(as.numeric(as.character(pa150r4)), 9)
+  )
 ```
 
 ```{r}
 test_df <-  test_df %>%
   mutate(
-    educa     = na_if(educa, 9),
+    educa     = na_if(as.numeric(as.character(educa)), 9),
     
-    employ1   = na_if(employ1, 9),
+    employ1   = na_if(as.numeric(as.character(employ1)), 9),
     
-    marital   = na_if(marital, 9),
+    marital   = na_if(as.numeric(as.character(marital)), 9),
     
-    incomg1   = na_if(incomg1, 9),
+    incomg1   = na_if(as.numeric(as.character(incomg1)), 9),
   )
-
 ```
 
 ```{r}
@@ -225,13 +254,6 @@ test_df <-  test_df %>%
 table(test_df$menthlth)
 ```
 
-```{r}
-test_df <- test_df %>%
-  mutate(
-    ment14d = na_if(ment14d, 9)
-  )
-```
-
 # Check ment14d
 ```{r}
 table(test_df$ment14d, useNA = "ifany")
@@ -240,36 +262,213 @@ table(test_df$ment14d, useNA = "ifany")
 ```{r}
 test_df <- test_df %>% 
   mutate(
-    race = na_if(race, 9)
+    race = na_if(as.numeric(as.character(race)), 9)
   )
 table(test_df$race, useNA = "ifany")
 ```
+############################ encoding categorical values ############################
+
+# Training Set Encoding Categorical Values
+```{r}
+# Clean variable names BK
+train_df <- train_df %>% clean_names()
+
+## binary variables (0=no, 1=yes)
+train_df <- train_df %>%
+  mutate(
+    hlthpl1 = ifelse(hlthpl1 == 1, 1, 0),      # Health plan coverage
+    persdoc3 = ifelse(persdoc3 == 1, 1, 0),    # Personal doctor
+    medcost1 = ifelse(medcost1 == 1, 1, 0),    # Could not see doctor due to cost
+    exerany2 = ifelse(exerany2 == 1, 1, 0),    # Physical activity
+    addepev3 = ifelse(addepev3 == 1, 1, 0),    # Ever told you had depressive disorder
+    acedeprs = ifelse(acedeprs == 1, 1, 0),    # ACE: depression exposure
+    decide = ifelse(decide == 1, 1, 0),        # Decision-making difficulty (cognitive decline)
+    pa150r4 = ifelse(pa150r4 == 1, 1, 0)       # Met physical activity guidelines
+  )
+
+## ordinal variables (ordered factor)
+train_df <- train_df %>%
+  mutate(
+    educa = factor(educa, levels = c(1:6), ordered = TRUE),            # Education level
+    incomg1 = factor(incomg1, levels = 1:8, ordered = TRUE),           # Income group
+    checkup1 = factor(checkup1, levels = c(4,3,2,1), ordered = TRUE),  # Last checkup (4 = Never → 1 = <1 year)
+    marital = factor(marital, levels = c(5,6,3,4,1,2), ordered = TRUE),# Marital status, loosely ordered
+    age80 = as.numeric(age80)                                          # Continuous, but sometimes treated as ordinal
+  )
+
+## nominal variables (unordered categories as factors)
+train_df <- train_df %>%
+  mutate(
+    sex = factor(sex),               # Sex: 1 = Male, 2 = Female
+    race = factor(race),             # Race/Ethnicity categories
+    employ1 = factor(employ1),       # Employment status
+    primins1 = factor(primins1),     # Primary insurance type
+    numadult = as.numeric(numadult)  # # of adults in household (can leave as numeric)
+  )
+
+## check how values are coded
+table(train_df$hlthpl1, useNA = "ifany")
+```
+################################ one-hot encoding train #######################################
+
+```{r}
+
+# Ensure categorical variables are factors BK
+train_df <- train_df %>%
+  mutate(
+    hlthpl1 = factor(hlthpl1),
+    persdoc3 = factor(persdoc3),
+    medcost1 = factor(medcost1),
+    checkup1 = factor(checkup1),
+    primins1 = factor(primins1),
+    addepev3 = factor(addepev3),
+    acedeprs = factor(acedeprs),
+    decide = factor(decide),
+    exerany2 = factor(exerany2),
+    pa150r4 = factor(pa150r4),
+    sex = factor(sex),
+    race = factor(race),
+    educa = factor(educa),
+    employ1 = factor(employ1),
+    marital = factor(marital),
+    incomg1 = factor(incomg1)
+  )
+
+# One-hot encode all factor variables
+# Separate response variable
+response_var <- train_df$ment14d
+
+# Remove it temporarily from dataset to avoid encoding
+brfss_train_no_response <- train_df %>% select(-ment14d)
+
+# Encode predictors only
+brfss_train_encoded <- fastDummies::dummy_cols(
+  brfss_train_no_response,
+  remove_first_dummy = TRUE,
+  remove_selected_columns = TRUE
+)
+
+# Add response variable back
+brfss_train_encoded$ment14d <- response_var
+```
+
+# Test Set Encoding
+```{r}
+# Clean variable names BK
+test_df <- test_df %>% clean_names()
+
+## binary variables (0=no, 1=yes)
+test_df <- test_df %>%
+  mutate(
+    hlthpl1 = ifelse(hlthpl1 == 1, 1, 0),      # Health plan coverage
+    persdoc3 = ifelse(persdoc3 == 1, 1, 0),    # Personal doctor
+    medcost1 = ifelse(medcost1 == 1, 1, 0),    # Could not see doctor due to cost
+    exerany2 = ifelse(exerany2 == 1, 1, 0),    # Physical activity
+    addepev3 = ifelse(addepev3 == 1, 1, 0),    # Ever told you had depressive disorder
+    acedeprs = ifelse(acedeprs == 1, 1, 0),    # ACE: depression exposure
+    decide = ifelse(decide == 1, 1, 0),        # Decision-making difficulty (cognitive decline)
+    pa150r4 = ifelse(pa150r4 == 1, 1, 0)       # Met physical activity guidelines
+  )
+
+## ordinal variables (ordered factor)
+test_df <- test_df %>%
+  mutate(
+    educa = factor(educa, levels = c(1:6), ordered = TRUE),            # Education level
+    incomg1 = factor(incomg1, levels = 1:8, ordered = TRUE),           # Income group
+    checkup1 = factor(checkup1, levels = c(4,3,2,1), ordered = TRUE),  # Last checkup (4 = Never → 1 = <1 year)
+    marital = factor(marital, levels = c(5,6,3,4,1,2), ordered = TRUE),# Marital status, loosely ordered
+    age80 = as.numeric(age80)                                          # Continuous, but sometimes treated as ordinal
+  )
+
+## nominal variables (unordered categories as factors)
+test_df <- test_df %>%
+  mutate(
+    sex = factor(sex),               # Sex: 1 = Male, 2 = Female
+    race = factor(race),             # Race/Ethnicity categories
+    employ1 = factor(employ1),       # Employment status
+    primins1 = factor(primins1),     # Primary insurance type
+    numadult = as.numeric(numadult)  # # of adults in household (can leave as numeric)
+  )
+
+## check how values are coded
+table(test_df$hlthpl1, useNA = "ifany")
+```
+################################ one-hot encoding test #######################################
+
+```{r}
+# Ensure categorical variables are factors BK
+test_df <- test_df %>%
+  mutate(
+    hlthpl1 = factor(hlthpl1),
+    persdoc3 = factor(persdoc3),
+    medcost1 = factor(medcost1),
+    checkup1 = factor(checkup1),
+    primins1 = factor(primins1),
+    addepev3 = factor(addepev3),
+    acedeprs = factor(acedeprs),
+    decide = factor(decide),
+    exerany2 = factor(exerany2),
+    pa150r4 = factor(pa150r4),
+    sex = factor(sex),
+    race = factor(race),
+    educa = factor(educa),
+    employ1 = factor(employ1),
+    marital = factor(marital),
+    incomg1 = factor(incomg1)
+  )
+
+# One-hot encode all factor variables
+# Separate response variable
+response_var_test <- test_df$ment14d
+
+# Remove it temporarily from dataset to avoid encoding
+brfss_test_no_response <- test_df %>% select(-ment14d)
+
+# Encode predictors only
+brfss_test_encoded <- fastDummies::dummy_cols(
+  brfss_test_no_response,
+  remove_first_dummy = TRUE,
+  remove_selected_columns = TRUE
+)
+
+# Add response variable back
+brfss_test_encoded$ment14d <- response_var_test
+
+missing_cols <- setdiff(colnames(brfss_train_encoded), colnames(brfss_test_encoded))
+print(missing_cols)
+
+for (col in missing_cols) {
+  brfss_test_encoded[[col]] <- 0
+}
+
+brfss_test_encoded <- brfss_test_encoded[, colnames(brfss_train_encoded)]
+```
 
 # Encode Train Variables - BK
-```{r}
-encodeTrain <- dummy_cols(train_df, #Select multilevel Nominal predictors for encoding
-                       select_columns = c("race", "primins1", "employ1",
-                                          "marital", "incomg1", "state"),
-                       remove_first_dummy = TRUE, #Avoids dummy variable trap
-                       remove_selected_columns = TRUE) #Removes original, un-encoded columns
-```
+#```{r}
+#encodeTrain <- dummy_cols(train_df, #Select multilevel Nominal predictors for encoding
+#                       select_columns = c("race", "primins1", "employ1",
+#                                          "marital", "incomg1", "state"),
+#                       remove_first_dummy = TRUE, #Avoids dummy variable trap
+#                       remove_selected_columns = TRUE) #Removes original, un-encoded columns
+#```
 # Encode Test Variables - BK
-```{r}
-encodeTest <- dummy_cols(test_df, 
-                       select_columns = c("race", "primins1", "employ1",
-                                          "marital", "incomg1", "state"),
-                       remove_first_dummy = TRUE, 
-                       remove_selected_columns = TRUE)
-```
+#```{r}
+#encodeTest <- dummy_cols(test_df, 
+#                       select_columns = c("race", "primins1", "employ1",
+#                                          "marital", "incomg1", "state"),
+#                       remove_first_dummy = TRUE, 
+#                       remove_selected_columns = TRUE)
+#```
 
 
 # Impute Missing Values - CR and SS
 ```{r}
 #Impute Train
-predMatrix <- quickpred(encodeTrain, mincor = 0.2) #Create Prediction matrix to only use variables for comparison with correlation greater than 0.2
+predMatrix <- quickpred(brfss_train_encoded, mincor = 0.2) #Create Prediction matrix to only use variables for comparison with correlation greater than 0.2
 
 set.seed(123)
-imputedTrain <- parlmice(encodeTrain, #parlmice to introduce parallel processing
+imputedTrain <- parlmice(brfss_train_encoded, #parlmice to introduce parallel processing
                          m = 1, 
                          method = "pmm", #PMM made sense given encoding. Fits regression model, and then estimates predicted values using random sampling from matched values.
                          maxit = 8,
@@ -278,10 +477,11 @@ imputedTrain <- parlmice(encodeTrain, #parlmice to introduce parallel processing
                          n.imp.core = 1)
 plot(imputedTrain)
 trainimputeFinal <- complete(imputedTrain)
+trainimputeFinal$ment14d <- train_df$ment14d
 
 #Impute Test
 set.seed(123)
-imputedTest <- parlmice(encodeTest, 
+imputedTest <- parlmice(brfss_test_encoded, 
                          m = 1, 
                          method = "pmm", 
                          maxit = 8,
@@ -290,6 +490,7 @@ imputedTest <- parlmice(encodeTest,
                          n.imp.core = 1)
 plot(imputedTest)
 testimputeFinal <- complete(imputedTest)
+testimputeFinal$ment14d <- test_df$ment14d
 ```
 
 # Tidymodels Recipe for Scaling/Centering - SS
@@ -310,19 +511,18 @@ head(traindataFinal)
 
 ## Creating Categorical Target Variable ('ment14d_cat')- CR
 ```{r}
-# Categorized target variable
-trainimputeFinal <- trainimputeFinal %>%
+trainimputeFinal <- trainimputeFinal %>% #Categorize mental health days into three levels
   mutate(ment14d_cat = case_when(
-    ment14d == 0 ~ "None",
-    ment14d <= 13 ~ "Occasional",
-    ment14d >= 14 ~ "Frequent"
+    ment14d == 0 ~ "None", #Zero days
+    ment14d <= 13 ~ "Occasional", #1-13 days
+    ment14d >= 14 ~ "Frequent" #14+ days
   ))
 
-testimputeFinal <- testimputeFinal %>%
+testimputeFinal <- testimputeFinal %>% #Apply same categorization to test set
   mutate(ment14d_cat = case_when(
-    ment14d == 0 ~ "None",
-    ment14d <= 13 ~ "Occasional",
-    ment14d >= 14 ~ "Frequent"
+    ment14d == 0 ~ "None", #Zero days
+    ment14d <= 13 ~ "Occasional", #1-13 days
+    ment14d >= 14 ~ "Frequent" #14+ days
   ))
 
 trainimputeFinal$ment14d_cat <- factor(trainimputeFinal$ment14d_cat, levels = c("None", "Occasional", "Frequent"))
@@ -331,14 +531,13 @@ testimputeFinal$ment14d_cat <- factor(testimputeFinal$ment14d_cat, levels = c("N
 
 ## Principle Component Analysis (PCA) on Scaled Data - CR
 ```{r}
-# Remove rows with any NA/infinite values before PCA
-pca_input <- traindataFinal %>%
+pca_input <- traindataFinal %>%  #Remove rows with any NA/infinite values
   select(where(is.numeric)) %>%
   filter(if_all(everything(), ~ !is.na(.) & is.finite(.))) %>%
   scale()
 
-pca_result <- prcomp(pca_input, center = TRUE, scale. = TRUE)
+pca_result <- prcomp(pca_input, center = TRUE, scale. = TRUE) #PCA with centering and scaling
 
-plot(pca_result, type = "l", main = "Scree Plot")
-summary(pca_result)
+plot(pca_result, type = "l", main = "Scree Plot") #Visualize variance by each principle component
+summary(pca_result) #Output cumulative variance to decide how many components to retain
 ```
