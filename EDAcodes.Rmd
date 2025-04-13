@@ -120,8 +120,8 @@ brfss_subset <- brfss_subset %>%
   )
 
 ```
-
-```{r} # CR
+#CR
+```{r} 
 brfss_subset <- brfss_subset %>%
   mutate(
     race      = na_if(race, 77),
@@ -141,8 +141,8 @@ brfss_subset <- brfss_subset %>%
   )
 
 ```
-
-```{r} # CR
+#CR
+```{r}
 brfss_subset <- brfss_subset %>%
   mutate(
     menthlth = brfss_raw$MENTHLTH,
@@ -172,8 +172,8 @@ brfss_subset <- brfss_subset %>%
 table(brfss_subset$ment14d, useNA = "ifany")
 
 ```
-
-```{r} #CR
+#CR
+```{r}
 brfss_subset <- brfss_subset %>%
   mutate(
     ment14d_cat = case_when(
@@ -186,8 +186,8 @@ brfss_subset <- brfss_subset %>%
   )
 
 ```
-
-```{r} - CR
+#CR
+```{r}
 table(brfss_subset$ment14d_cat, useNA = "ifany")
 ```
 
@@ -198,15 +198,16 @@ table(brfss_subset$race, useNA = "ifany")
 table(brfss_subset$incomg1, useNA = "ifany")
 
 ```
-```{r} #CR
+#CR
+```{r} 
 brfss_subset <- brfss_subset %>%
   mutate(
     ment14d = na_if(ment14d, 9)
   )
 
 ```
-
-```{r} #CR
+#CR
+```{r}
 brfss_subset <- brfss_subset %>% 
   mutate(
     race = as.numeric(race),
