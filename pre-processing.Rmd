@@ -295,8 +295,8 @@ testimputeFinal <- complete(imputedTest)
 # Tidymodels Recipe for Scaling/Centering - SS
 ```{r}
 recipe <- recipe(ment14d ~ ., data = trainimputeFinal) %>% #Tidymodels to simplify model fitting and predicting later
-  step_center(all_predictors()) %>% #Center variables
-  step_scale(all_predictors()) #Scale variables
+  step_center(all_numeric_predictors()) %>% #Center variables
+  step_scale(all_numeric_predictors()) #Scale variables
 
 preparedRecipe <- prep(recipe, training = trainimputeFinal) #Prepares recipe with statistics from transformation
 
@@ -333,14 +333,12 @@ testimputeFinal$ment14d_cat <- factor(testimputeFinal$ment14d_cat, levels = c("N
 ```{r}
 # Remove rows with any NA/infinite values before PCA
 pca_input <- traindataFinal %>%
-  select(-ment14d) %>%
+  select(where(is.numeric)) %>%
   filter(if_all(everything(), ~ !is.na(.) & is.finite(.))) %>%
   scale()
 
-# Run PCA
 pca_result <- prcomp(pca_input, center = TRUE, scale. = TRUE)
 
-# Scree plot and summary
 plot(pca_result, type = "l", main = "Scree Plot")
 summary(pca_result)
 ```
