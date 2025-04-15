@@ -143,6 +143,8 @@ brfss_subset <- brfss_subset %>%
 ```
 #CR
 ```{r}
+#Recode MENTHLTH to numeric days of poor health, convert code to NA
+#Create categorical variable to 3 levels: None, Occasional, Frequent
 brfss_subset <- brfss_subset %>%
   mutate(
     menthlth = brfss_raw$MENTHLTH,
@@ -161,6 +163,7 @@ brfss_subset <- brfss_subset %>%
 ```
 
 ```{r}
+#Recode 9 as missing in ment14d- CR
 brfss_subset <- brfss_subset %>%
   mutate(
     ment14d = na_if(ment14d, 9)
@@ -174,12 +177,13 @@ table(brfss_subset$ment14d, useNA = "ifany")
 ```
 #CR
 ```{r}
+#Create categorical version of ment14d
 brfss_subset <- brfss_subset %>%
   mutate(
     ment14d_cat = case_when(
-      ment14d == 0 ~ "None",
-      ment14d >= 1 & ment14d <= 13 ~ "Occasional",
-      ment14d >= 14 ~ "Frequent",
+      ment14d == 0 ~ "None", #o days - none
+      ment14d >= 1 & ment14d <= 13 ~ "Occasional", #1-13 days - Occasional
+      ment14d >= 14 ~ "Frequent", #14+ days - Frequent
       TRUE ~ NA_character_
     ),
     ment14d_cat = factor(ment14d_cat, levels = c("None", "Occasional", "Frequent"))
@@ -232,7 +236,7 @@ brfss_subset <- brfss_subset %>%
   )
 
 ```
-
+#CR
 ```{r}
 table(brfss_subset$race, useNA = "ifany")
 
@@ -255,6 +259,7 @@ brfss_subset <- brfss_subset %>%
 table(brfss_subset$hlthpl1, useNA = "ifany")
 
 ```
+#CR
 ```{r}
 table(brfss_subset$exerany2, useNA = "ifany")
 
