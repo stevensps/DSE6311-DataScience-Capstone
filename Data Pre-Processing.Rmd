@@ -607,7 +607,7 @@ multi_wf <- workflow() %>%
 cv_results <- fit_resamples(
   multi_wf,
   resamples = folds,
-  metrics = metric_set(accuracy),
+  metrics = metric_set(yardstick::accuracy),
   control = control_resamples(save_pred = TRUE)
 )
 
