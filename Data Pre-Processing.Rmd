@@ -496,7 +496,8 @@ testimputeFinal$ment14d <- test_df$ment14d
 
 # Tidymodels Recipe for Scaling/Centering - SS
 ```{r}
-recipe <- recipe(ment14d ~ ., data = trainimputeFinal) %>% #Tidymodels to simplify model fitting and predicting later
+recipe <- recipe(ment14d_cat ~ ., data = trainimputeFinal) %>% #Tidymodels to simplify model fitting and predicting later
+  update_role(menthlth, starts_with("addepev3"), starts_with("acedeprs"), starts_with("decide"), new_role = "id") %>%
   step_center(all_numeric_predictors()) %>% #Center variables
   step_scale(all_numeric_predictors()) #Scale variables
 
@@ -512,18 +513,20 @@ head(traindataFinal)
 
 ## Creating Categorical Target Variable ('ment14d_cat')- CR
 ```{r}
-trainimputeFinal <- trainimputeFinal %>% #Categorize mental health days into three levels
+trainimputeFinal <- trainimputeFinal %>%
   mutate(ment14d_cat = case_when(
-    ment14d == 0 ~ "None", #Zero days
-    ment14d <= 13 ~ "Occasional", #1-13 days
-    ment14d >= 14 ~ "Frequent" #14+ days
+    ment14d == 1 ~ "None",         # 0 days
+    ment14d == 2 ~ "Occasional",   # 1–13 days
+    ment14d == 3 ~ "Frequent",     # 14+ days
+    TRUE ~ NA_character_
   ))
 
-testimputeFinal <- testimputeFinal %>% #Apply same categorization to test set
+testimputeFinal <- testimputeFinal %>%
   mutate(ment14d_cat = case_when(
-    ment14d == 0 ~ "None", #Zero days
-    ment14d <= 13 ~ "Occasional", #1-13 days
-    ment14d >= 14 ~ "Frequent" #14+ days
+    ment14d == 1 ~ "None",
+    ment14d == 2 ~ "Occasional",
+    ment14d == 3 ~ "Frequent",
+    TRUE ~ NA_character_
   ))
 
 trainimputeFinal$ment14d_cat <- factor(trainimputeFinal$ment14d_cat, levels = c("None", "Occasional", "Frequent"))
@@ -542,3 +545,77 @@ pca_result <- prcomp(pca_input, center = TRUE, scale. = TRUE) #PCA with centerin
 plot(pca_result, type = "l", main = "Scree Plot") #Visualize variance by each principle component
 summary(pca_result) #Output cumulative variance to decide how many components to retain
 ```
+############################################### Modeling ########################################################
+
+
+```{r}
+library(nnet) 
+```
+
+```{r}
+multi_model <- multinom_reg(mode = "classification") %>%
+  set_engine("nnet")
+```
+
+```{r}
+multi_wf <- workflow() %>%
+  add_model(multi_model) %>%
+  add_formula(ment14d_cat ~ .)
+```
+
+```{r}
+multi_fit <- fit(multi_wf, data = traindataFinal)
+```
+
+```{r}
+multi_preds <- predict(multi_fit, new_data = testdataFinal)
+```
+
+```{r}
+multi_probs <- predict(multi_fit, new_data = testdataFinal, type = "prob")
+```
+
+```{r}
+test_results <- bind_cols(testdataFinal, multi_preds) %>%
+  rename(pred_class = .pred_class)
+```
+
+```{r}
+accuracy(test_results, truth = ment14d_cat, estimate = pred_class)
+```
+
+```{r}
+conf_mat(test_results, truth = ment14d_cat, estimate = pred_class)
+```
+```{r}
+set.seed(123)
+folds <- vfold_cv(trainimputeFinal, v = 5, strata = ment14d_cat)
+
+```
+
+```{r}
+multi_model <- multinom_reg(mode = "classification") %>%
+  set_engine("nnet")
+
+multi_wf <- workflow() %>%
+  add_model(multi_model) %>%
+  add_formula(ment14d_cat ~ .)
+
+```
+
+```{r}
+cv_results <- fit_resamples(
+  multi_wf,
+  resamples = folds,
+  metrics = metric_set(accuracy),
+  control = control_resamples(save_pred = TRUE)
+)
+
+```
+
+```{r}
+collect_metrics(cv_results)
+
+```
+
+
