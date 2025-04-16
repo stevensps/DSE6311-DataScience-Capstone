@@ -494,23 +494,6 @@ testimputeFinal <- complete(imputedTest)
 testimputeFinal$ment14d <- test_df$ment14d
 ```
 
-# Tidymodels Recipe for Scaling/Centering - SS
-```{r}
-recipe <- recipe(ment14d_cat ~ ., data = trainimputeFinal) %>% #Tidymodels to simplify model fitting and predicting later
-  update_role(menthlth, starts_with("addepev3"), starts_with("acedeprs"), starts_with("decide"), new_role = "id") %>%
-  step_center(all_numeric_predictors()) %>% #Center variables
-  step_scale(all_numeric_predictors()) #Scale variables
-
-preparedRecipe <- prep(recipe, training = trainimputeFinal) #Prepares recipe with statistics from transformation
-
-traindataFinal <- bake(preparedRecipe, new_data = trainimputeFinal) #Apply transformations
-testdataFinal <- bake(preparedRecipe, new_data = testimputeFinal) #Apply transformations
-
-dim(traindataFinal)
-dim(testdataFinal)
-head(traindataFinal)
-```
-
 ## Creating Categorical Target Variable ('ment14d_cat')- CR
 ```{r}
 trainimputeFinal <- trainimputeFinal %>%
@@ -531,6 +514,23 @@ testimputeFinal <- testimputeFinal %>%
 
 trainimputeFinal$ment14d_cat <- factor(trainimputeFinal$ment14d_cat, levels = c("None", "Occasional", "Frequent"))
 testimputeFinal$ment14d_cat <- factor(testimputeFinal$ment14d_cat, levels = c("None", "Occasional", "Frequent"))
+```
+
+# Tidymodels Recipe for Scaling/Centering - SS
+```{r}
+recipe <- recipe(ment14d_cat ~ ., data = trainimputeFinal) %>% #Tidymodels to simplify model fitting and predicting later
+  update_role(menthlth, starts_with("addepev3"), starts_with("acedeprs"), starts_with("decide"), new_role = "id") %>%
+  step_center(all_numeric_predictors()) %>% #Center variables
+  step_scale(all_numeric_predictors()) #Scale variables
+
+preparedRecipe <- prep(recipe, training = trainimputeFinal) #Prepares recipe with statistics from transformation
+
+traindataFinal <- bake(preparedRecipe, new_data = trainimputeFinal) #Apply transformations
+testdataFinal <- bake(preparedRecipe, new_data = testimputeFinal) #Apply transformations
+
+dim(traindataFinal)
+dim(testdataFinal)
+head(traindataFinal)
 ```
 
 ## Principle Component Analysis (PCA) on Scaled Data - CR
@@ -560,7 +560,7 @@ multi_model <- multinom_reg(mode = "classification") %>%
 ```{r}
 multi_wf <- workflow() %>%
   add_model(multi_model) %>%
-  add_formula(ment14d_cat ~ .)
+  add_recipe(recipe)
 ```
 
 ```{r}
