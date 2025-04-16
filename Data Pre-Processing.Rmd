@@ -549,73 +549,72 @@ summary(pca_result) #Output cumulative variance to decide how many components to
 
 
 ```{r}
-library(nnet) 
+library(nnet) #Load for multinomial logistic regression
 ```
 
 ```{r}
-multi_model <- multinom_reg(mode = "classification") %>%
+multi_model <- multinom_reg(mode = "classification") %>% #Define multinomoal logistic regression model with nnet
   set_engine("nnet")
 ```
 
 ```{r}
-multi_wf <- workflow() %>%
+multi_wf <- workflow() %>% #Create workflow with recipe and multinomial model
   add_model(multi_model) %>%
   add_recipe(recipe)
 ```
 
 ```{r}
-multi_fit <- fit(multi_wf, data = traindataFinal)
+multi_fit <- fit(multi_wf, data = traindataFinal) #Fit model using preprocessed training data
 ```
 
 ```{r}
-multi_preds <- predict(multi_fit, new_data = testdataFinal)
+multi_preds <- predict(multi_fit, new_data = testdataFinal) #Pedict class labels for test set
 ```
 
 ```{r}
-multi_probs <- predict(multi_fit, new_data = testdataFinal, type = "prob")
+multi_probs <- predict(multi_fit, new_data = testdataFinal, type = "prob") #Predict class probabilities
 ```
 
 ```{r}
-test_results <- bind_cols(testdataFinal, multi_preds) %>%
-  rename(pred_class = .pred_class)
+test_results <- bind_cols(testdataFinal, multi_preds) %>% #Binf prediction to test set
+  rename(pred_class = .pred_class) #Rename predicted class
 ```
 
 ```{r}
-accuracy(test_results, truth = ment14d_cat, estimate = pred_class)
+accuracy(test_results, truth = ment14d_cat, estimate = pred_class) #Calculate classification accuracy on test set
 ```
 
 ```{r}
-conf_mat(test_results, truth = ment14d_cat, estimate = pred_class)
+conf_mat(test_results, truth = ment14d_cat, estimate = pred_class) #Confusion matrix to evaluate prediction breakdown across categories
 ```
+
 ```{r}
 set.seed(123)
-folds <- vfold_cv(trainimputeFinal, v = 5, strata = ment14d_cat)
+folds <- vfold_cv(trainimputeFinal, v = 5, strata = ment14d_cat) #Create 5-fold cv with stratification on target variable
 
 ```
 
 ```{r}
-multi_model <- multinom_reg(mode = "classification") %>%
+multi_model <- multinom_reg(mode = "classification") %>% #Define multinomial logistic regression model for classification
   set_engine("nnet")
 
-multi_wf <- workflow() %>%
+multi_wf <- workflow() %>% #create formula workflow with model and target variable
   add_model(multi_model) %>%
   add_formula(ment14d_cat ~ .)
 
 ```
 
 ```{r}
-cv_results <- fit_resamples(
+cv_results <- fit_resamples( #Perform 5-fold cv
   multi_wf,
   resamples = folds,
   metrics = metric_set(yardstick::accuracy),
-  control = control_resamples(save_pred = TRUE)
+  control = control_resamples(save_pred = TRUE) #Save prediction
 )
 
 ```
 
 ```{r}
-collect_metrics(cv_results)
+collect_metrics(cv_results) #Mean accuracy across cv folds
 
 ```
-
-
