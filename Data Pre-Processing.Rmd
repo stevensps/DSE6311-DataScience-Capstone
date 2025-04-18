@@ -30,6 +30,7 @@ library(fastDummies)
 library(tidymodels)
 library(parallel)
 library(janitor)
+library(nnet) # Load for multinomial logistic regression
 ```
 
 
