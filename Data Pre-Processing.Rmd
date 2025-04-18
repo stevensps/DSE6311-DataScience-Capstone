@@ -493,22 +493,7 @@ plot(imputedTest)
 testimputeFinal <- complete(imputedTest)
 testimputeFinal$ment14d <- test_df$ment14d
 ```
-
-# Tidymodels Recipe for Scaling/Centering - SS
-```{r}
-recipe <- recipe(ment14d ~ ., data = trainimputeFinal) %>% #Tidymodels to simplify model fitting and predicting later
-  step_center(all_numeric_predictors()) %>% #Center variables
-  step_scale(all_numeric_predictors()) #Scale variables
-
-preparedRecipe <- prep(recipe, training = trainimputeFinal) #Prepares recipe with statistics from transformation
-
-traindataFinal <- bake(preparedRecipe, new_data = trainimputeFinal) #Apply transformations
-testdataFinal <- bake(preparedRecipe, new_data = testimputeFinal) #Apply transformations
-
-dim(traindataFinal)
-dim(testdataFinal)
-head(traindataFinal)
-```
+##########################################################################New Code for Initial Modeling############################################################################################################
 
 ## Creating Categorical Target Variable ('ment14d_cat')- CR
 ```{r}
@@ -532,15 +517,287 @@ trainimputeFinal$ment14d_cat <- factor(trainimputeFinal$ment14d_cat, levels = c(
 testimputeFinal$ment14d_cat <- factor(testimputeFinal$ment14d_cat, levels = c("None", "Occasional", "Frequent"))
 ```
 
+
+```{r}
+train_clean <- trainimputeFinal %>%
+  mutate(across(where(is.integer), as.numeric)) %>%
+  select(-ment14d)  # Remove the original numeric target to prevent leakage
+
+test_clean <- testimputeFinal %>%
+  mutate(across(where(is.integer), as.numeric)) %>%
+  select(-ment14d)
+```
+
+
+# Tidymodels Recipe for Scaling/Centering - SS
+```{r}
+recipe <- recipe(ment14d_cat ~ ., data = train_clean) %>%  # Use cleaned training data
+  update_role(menthlth, new_role = "id") %>%  # Excludes menth1th
+  step_impute_mean(all_numeric_predictors()) %>% # Impute missing nummeric value
+  step_upsample(ment14d_cat) %>%
+  step_center(all_numeric_predictors()) %>%
+  step_scale(all_numeric_predictors())
+
+preparedRecipe <- prep(recipe, training = train_clean)
+
+traindataFinal <- bake(preparedRecipe, new_data = NULL)
+testdataFinal <- bake(preparedRecipe, new_data = test_clean)
+
+dim(traindataFinal)
+dim(testdataFinal)
+head(traindataFinal)
+```
+
+```{r}
+table(traindataFinal$ment14d_cat)
+```
+
+```{r}
+sum(is.na(traindataFinal$primins1_88))
+```
+
+
 ## Principle Component Analysis (PCA) on Scaled Data - CR
 ```{r}
-pca_input <- traindataFinal %>%  #Remove rows with any NA/infinite values
-  select(where(is.numeric)) %>%
-  filter(if_all(everything(), ~ !is.na(.) & is.finite(.))) %>%
-  scale()
+pca_input_data <- traindataFinal %>%
+  filter(if_all(everything(), ~ !is.na(.) & is.finite(.))) # Filter out rows with any NA or infinite values
+
+pca_input <- pca_input_data %>% 
+  select(where(is.numeric)) %>% # Keep only numeric columns for PCA
+  scale() # Standardize numeric features
 
 pca_result <- prcomp(pca_input, center = TRUE, scale. = TRUE) #PCA with centering and scaling
 
 plot(pca_result, type = "l", main = "Scree Plot") #Visualize variance by each principle component
 summary(pca_result) #Output cumulative variance to decide how many components to retain
+```
+
+```{r}
+pca_scores <- as.data.frame(pca_result$x) # Get PCA scores
+pca_scores$ment14d_cat <- pca_input_data$ment14d_cat # Add original outcome category to PCA scores
+```
+
+```{r}
+library(ggplot2)
+
+ggplot(pca_scores, aes(x = PC1, y = PC2, color = ment14d_cat)) +
+  geom_point(alpha = 0.5) +
+  labs(title = "PCA: PC1 vs PC2 colored by ment14d_cat") +
+  theme_minimal()
+```
+
+```{r}
+set.seed(123)
+kmeans_result <- kmeans(pca_scores[, 1:2], centers = 3)  # Using PC1 & PC2 # Run k-means clustering with k = 3 on PC1 & PC2
+
+pca_scores$cluster <- as.factor(kmeans_result$cluster) # Assign labels
+```
+
+```{r}
+ggplot(pca_scores, aes(x = PC1, y = PC2, color = cluster)) +
+  geom_point(alpha = 0.5) +
+  labs(title = "K-means Clusters (k=3) on PCA Components") +
+  theme_minimal()
+```
+
+```{r}
+table(Actual = pca_scores$ment14d_cat, Cluster = pca_scores$cluster) # Compare clusters to original categories
+
+
+############################################### Modeling ########################################################
+
+
+```{r}
+library(nnet) # Load for multinomial logistic regression
+```
+
+```{r}
+multi_model <- multinom_reg(mode = "classification") %>% # Set up multinomial logistic model
+  set_engine("nnet")
+```
+
+```{r}
+multi_wf <- workflow() %>% # Create workflow with recipe and multinomial model
+  add_model(multi_model) %>%
+  add_recipe(recipe)
+```
+
+```{r}
+multi_fit <- fit(multi_wf, data = traindataFinal) # Fit model using preprocessed training data
+```
+
+```{r}
+multi_preds <- predict(multi_fit, new_data = testdataFinal) # Predict class labels for test set
+```
+
+```{r}
+multi_probs <- predict(multi_fit, new_data = testdataFinal, type = "prob") # Predict class probabilities
+```
+
+```{r}
+test_results <- bind_cols(testdataFinal, multi_preds) %>% # Combine predictions with test set
+  rename(pred_class = .pred_class) # Rename predicted class
+```
+
+```{r}
+accuracy(test_results, truth = ment14d_cat, estimate = pred_class) # Calculate classification accuracy on test set
+```
+
+```{r}
+conf_mat(test_results, truth = ment14d_cat, estimate = pred_class) # Confusion matrix to evaluate prediction breakdown across categories
+```
+```{r}
+set.seed(123)
+folds <- vfold_cv(train_clean, v = 5, strata = ment14d_cat) # Create 5-fold cross validation with stratification on target variable
+
+```
+
+```{r}
+multi_model <- multinom_reg(mode = "classification") %>% # Define multinomial logistic regression model for classification
+  set_engine("nnet")
+
+multi_wf <- workflow() %>% # Create workflow using formula interface with multinomial model
+  add_model(multi_model) %>%
+  add_formula(ment14d_cat ~ .)
+
+```
+
+```{r}
+cv_results <- fit_resamples( # Perform 5-fold cross validation and save prediction
+  multi_wf,
+  resamples = folds,
+  metrics = metric_set(yardstick::accuracy),
+  control = control_resamples(save_pred = TRUE)
+)
+
+```
+
+```{r}
+collect_metrics(cv_results) # Mean accuracy across cross validation folds
+
+```
+
+```{r}
+library(ranger) # Fast Random Forest engine
+```
+
+```{r}
+rf_model <- rand_forest( # Set up model with hyperparameters to tune
+  mode = "classification",
+  mtry = tune(),
+  trees = 100,
+  min_n = tune()
+) %>%
+  set_engine("ranger", importance = "impurity") # Define Random Forest classification model using ranger engine
+```
+
+```{r}
+rf_wf <- workflow() %>% # Create workflow with preprocessing recipe and Random Forest model
+  add_model(rf_model) %>%
+  add_recipe(recipe)
+```
+
+```{r}
+set.seed(123) # Set up 5-fold cross-validation with stratified sampling on outcome
+folds <- vfold_cv(train_clean, v = 5, strata = ment14d_cat) 
+```
+
+```{r}
+rf_results <- tune_grid( # Tune mtry and min_n using cross-validation
+  rf_wf,
+  resamples = folds,
+  grid = 3,
+  metrics = metric_set(yardstick::accuracy),
+  control = control_grid(verbose = TRUE)
+)
+```
+
+```{r}
+saveRDS(rf_results, "rf_results.rds")
+```
+
+```{r}
+file.info("rf_results.rds")
+```
+
+
+```{r}
+best_rf <- select_best(x = rf_results, metric = "accuracy")  # Select hyperparameters with highest accuracy
+```
+
+```{r}
+rf_model_final <- rand_forest(
+  mode = "classification",
+  mtry = best_rf$mtry,
+  trees = 100,
+  min_n = best_rf$min_n
+) %>%
+  set_engine("ranger", importance = "impurity")
+```
+
+```{r}
+final_rf_wf <- workflow() %>%
+  add_model(rf_model_final) %>%
+  add_recipe(recipe)
+```
+
+
+```{r}
+final_rf_fit <- fit(final_rf_wf, data = traindataFinal)
+```
+
+```{r}
+rf_preds <- predict(final_rf_fit, new_data = testdataFinal) # Predict classes on test set using finalized Random Forest model
+
+rf_probs <- predict(final_rf_fit, new_data = testdataFinal, type = "prob") # Predict probabilities
+```
+
+```{r}
+rf_results_final <- bind_cols(testdataFinal, rf_preds) %>% # Combine predictions with test set
+  rename(pred_class = .pred_class)
+
+accuracy(rf_results_final, truth = ment14d_cat, estimate = pred_class) # Accuracy
+
+conf_mat(rf_results_final, truth = ment14d_cat, estimate = pred_class) # Confusion matrix
+```
+
+```{r}
+library(yardstick)
+```
+
+```{r}
+rf_results_final <- bind_cols(testdataFinal, rf_preds)
+
+rf_results_final %>%
+  metrics(truth = ment14d_cat, estimate = .pred_class)
+```
+
+```{r}
+rf_results_final %>%
+  metrics(truth = ment14d_cat, estimate = .pred_class)
+```
+
+```{r}
+rf_results_final %>%
+  group_by(ment14d_cat) %>%
+  yardstick::precision(truth = ment14d_cat, estimate = .pred_class)
+```
+
+```{r}
+rf_results_final %>%
+  group_by(ment14d_cat) %>%
+  yardstick::recall(truth = ment14d_cat, estimate = .pred_class)
+```
+
+```{r}
+conf_mat(rf_results_final, truth = ment14d_cat, estimate = .pred_class) %>%
+  autoplot(type = "heatmap") +
+  ggtitle("Random Forest Confusion Matrix (Test Set)") +
+  theme_minimal()
+```
+
+```{r}
+final_rf_fit %>% # Show variable importance
+  extract_fit_parsnip() %>% 
+  vip::vip(num_features = 15)
 ```
