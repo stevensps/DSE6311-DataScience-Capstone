@@ -533,10 +533,13 @@ test_clean <- testimputeFinal %>%
 ```{r}
 recipe <- recipe(ment14d_cat ~ ., data = train_clean) %>%  # Use cleaned training data
   update_role(menthlth, new_role = "id") %>%  # Excludes menth1th
-  step_impute_mean(all_numeric_predictors()) %>% # Impute missing nummeric value
-  step_upsample(ment14d_cat) %>%
+  step_impute_mean(all_numeric_predictors()) %>%
+  step_impute_mode(all_nominal_predictors()) %>%
+  step_dummy(all_nominal_predictors(), one_hot = TRUE) %>%
   step_center(all_numeric_predictors()) %>%
-  step_scale(all_numeric_predictors())
+  step_scale(all_numeric_predictors()) %>%
+  step_upsample(ment14d_cat)
+
 
 preparedRecipe <- prep(recipe, training = train_clean)
 
@@ -578,8 +581,6 @@ pca_scores$ment14d_cat <- pca_input_data$ment14d_cat # Add original outcome cate
 ```
 
 ```{r}
-library(ggplot2)
-
 ggplot(pca_scores, aes(x = PC1, y = PC2, color = ment14d_cat)) +
   geom_point(alpha = 0.5) +
   labs(title = "PCA: PC1 vs PC2 colored by ment14d_cat") +
@@ -602,10 +603,8 @@ ggplot(pca_scores, aes(x = PC1, y = PC2, color = cluster)) +
 
 ```{r}
 table(Actual = pca_scores$ment14d_cat, Cluster = pca_scores$cluster) # Compare clusters to original categories
-
-
+```
 ############################################### Modeling ########################################################
-
 
 ```{r}
 library(nnet) # Load for multinomial logistic regression
