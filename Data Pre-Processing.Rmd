@@ -532,10 +532,9 @@ test_clean <- testimputeFinal %>%
 # Tidymodels Recipe for Scaling/Centering - SS
 ```{r}
 recipe <- recipe(ment14d_cat ~ ., data = train_clean) %>%  # Use cleaned training data
-  update_role(menthlth, new_role = "id") %>%
-  step_impute_mean(all_numeric_predictors()) %>%
+  update_role(menthlth, new_role = "id") %>%  # Excludes menth1th
+  step_impute_mean(all_numeric_predictors()) %>% # Impute missing nummeric value
   step_upsample(ment14d_cat) %>%
-
   step_center(all_numeric_predictors()) %>%
   step_scale(all_numeric_predictors())
 
