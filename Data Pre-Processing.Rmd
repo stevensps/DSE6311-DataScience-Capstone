@@ -532,13 +532,16 @@ test_clean <- testimputeFinal %>%
 # Tidymodels Recipe for Scaling/Centering - SS
 ```{r}
 recipe <- recipe(ment14d_cat ~ ., data = train_clean) %>%  # Use cleaned training data
-  update_role(menthlth, starts_with("addepev3"), starts_with("acedeprs"), starts_with("decide"), new_role = "id") %>%
+  update_role(menthlth, new_role = "id") %>%
+  step_impute_mean(all_numeric_predictors()) %>%
+  step_upsample(ment14d_cat) %>%
+
   step_center(all_numeric_predictors()) %>%
   step_scale(all_numeric_predictors())
 
 preparedRecipe <- prep(recipe, training = train_clean)
 
-traindataFinal <- bake(preparedRecipe, new_data = train_clean)
+traindataFinal <- bake(preparedRecipe, new_data = NULL)
 testdataFinal <- bake(preparedRecipe, new_data = test_clean)
 
 dim(traindataFinal)
@@ -546,6 +549,13 @@ dim(testdataFinal)
 head(traindataFinal)
 ```
 
+```{r}
+table(traindataFinal$ment14d_cat)
+```
+
+```{r}
+sum(is.na(traindataFinal$primins1_88))
+```
 
 
 ## Principle Component Analysis (PCA) on Scaled Data - CR
@@ -734,8 +744,6 @@ final_rf_wf <- workflow() %>%
 
 
 ```{r}
-final_rf_wf <- finalize_workflow(rf_wf, best_rf) # Finalize the workflow with best hyperparameters and fit on full training data
-
 final_rf_fit <- fit(final_rf_wf, data = traindataFinal)
 ```
 
@@ -752,6 +760,41 @@ rf_results_final <- bind_cols(testdataFinal, rf_preds) %>% # Combine predictions
 accuracy(rf_results_final, truth = ment14d_cat, estimate = pred_class) # Accuracy
 
 conf_mat(rf_results_final, truth = ment14d_cat, estimate = pred_class) # Confusion matrix
+```
+
+```{r}
+library(yardstick)
+```
+
+```{r}
+rf_results_final <- bind_cols(testdataFinal, rf_preds)
+
+rf_results_final %>%
+  metrics(truth = ment14d_cat, estimate = .pred_class)
+```
+
+```{r}
+rf_results_final %>%
+  metrics(truth = ment14d_cat, estimate = .pred_class)
+```
+
+```{r}
+rf_results_final %>%
+  group_by(ment14d_cat) %>%
+  yardstick::precision(truth = ment14d_cat, estimate = .pred_class)
+```
+
+```{r}
+rf_results_final %>%
+  group_by(ment14d_cat) %>%
+  yardstick::recall(truth = ment14d_cat, estimate = .pred_class)
+```
+
+```{r}
+conf_mat(rf_results_final, truth = ment14d_cat, estimate = .pred_class) %>%
+  autoplot(type = "heatmap") +
+  ggtitle("Random Forest Confusion Matrix (Test Set)") +
+  theme_minimal()
 ```
 
 ```{r}
