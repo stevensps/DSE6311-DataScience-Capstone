@@ -6,6 +6,13 @@ date: "2025-04-18"
 output: html_document
 ---
 
+```{r}
+library(ggplot2)
+library(nnet) # Load for multinomial logistic regression
+library(ranger) # Fast Random Forest engine
+library(yardstick)
+```
+
 ##########################################################################New Code for Initial Modeling############################################################################################################
 
 ## Creating Categorical Target Variable ('ment14d_cat')- CR
@@ -91,7 +98,6 @@ pca_scores$ment14d_cat <- pca_input_data$ment14d_cat # Add original outcome cate
 ```
 
 ```{r}
-library(ggplot2)
 
 ggplot(pca_scores, aes(x = PC1, y = PC2, color = ment14d_cat)) +
   geom_point(alpha = 0.5) +
@@ -118,11 +124,6 @@ table(Actual = pca_scores$ment14d_cat, Cluster = pca_scores$cluster) # Compare c
 
 
 ############################################### Modeling ########################################################
-
-
-```{r}
-library(nnet) # Load for multinomial logistic regression
-```
 
 ```{r}
 multi_model <- multinom_reg(mode = "classification") %>% # Set up multinomial logistic model
@@ -187,12 +188,8 @@ cv_results <- fit_resamples( # Perform 5-fold cross validation and save predicti
 
 ```{r}
 collect_metrics(cv_results) # Mean accuracy across cross validation folds
-
 ```
 
-```{r}
-library(ranger) # Fast Random Forest engine
-```
 
 ```{r}
 rf_model <- rand_forest( # Set up model with hyperparameters to tune
@@ -272,10 +269,6 @@ rf_results_final <- bind_cols(testdataFinal, rf_preds) %>% # Combine predictions
 accuracy(rf_results_final, truth = ment14d_cat, estimate = pred_class) # Accuracy
 
 conf_mat(rf_results_final, truth = ment14d_cat, estimate = pred_class) # Confusion matrix
-```
-
-```{r}
-library(yardstick)
 ```
 
 ```{r}
