@@ -30,7 +30,7 @@ library(fastDummies)
 library(tidymodels)
 library(parallel)
 library(janitor)
-library(nnet) # Load for multinomial logistic regression
+library(themis)
 ```
 
 
@@ -532,14 +532,14 @@ test_clean <- testimputeFinal %>%
 
 # Tidymodels Recipe for Scaling/Centering - SS
 ```{r}
-recipe <- recipe(ment14d_cat ~ ., data = train_clean) %>%  # Use cleaned training data
-  update_role(menthlth, new_role = "id") %>%  # Excludes menth1th
+recipe <- recipe(ment14d_cat ~ ., data = train_clean) %>%
+  update_role(menthlth, state, new_role = "id") %>%
   step_impute_mean(all_numeric_predictors()) %>%
   step_impute_mode(all_nominal_predictors()) %>%
   step_dummy(all_nominal_predictors(), one_hot = TRUE) %>%
+  step_zv(all_predictors()) %>%
   step_center(all_numeric_predictors()) %>%
-  step_scale(all_numeric_predictors()) %>%
-  step_upsample(ment14d_cat)
+  step_scale(all_numeric_predictors())
 
 
 preparedRecipe <- prep(recipe, training = train_clean)
@@ -558,6 +558,9 @@ table(traindataFinal$ment14d_cat)
 
 ```{r}
 sum(is.na(traindataFinal$primins1_88))
+```
+```{r}
+levels(traindataFinal$ment14d_cat)
 ```
 
 
@@ -605,11 +608,14 @@ ggplot(pca_scores, aes(x = PC1, y = PC2, color = cluster)) +
 ```{r}
 table(Actual = pca_scores$ment14d_cat, Cluster = pca_scores$cluster) # Compare clusters to original categories
 ```
-############################################### Modeling ########################################################
+
+##### Modeling #####
+
 
 ```{r}
 library(nnet) # Load for multinomial logistic regression
 ```
+
 
 ```{r}
 multi_model <- multinom_reg(mode = "classification") %>% # Set up multinomial logistic model
@@ -646,6 +652,7 @@ accuracy(test_results, truth = ment14d_cat, estimate = pred_class) # Calculate c
 ```{r}
 conf_mat(test_results, truth = ment14d_cat, estimate = pred_class) # Confusion matrix to evaluate prediction breakdown across categories
 ```
+
 ```{r}
 set.seed(123)
 folds <- vfold_cv(train_clean, v = 5, strata = ment14d_cat) # Create 5-fold cross validation with stratification on target variable
@@ -678,17 +685,39 @@ collect_metrics(cv_results) # Mean accuracy across cross validation folds
 ```
 
 ```{r}
-library(ranger) # Fast Random Forest engine
+library(ranger)      # Random Forest engine
+library(future) 
 ```
 
 ```{r}
-rf_model <- rand_forest( # Set up model with hyperparameters to tune
+parallel::detectCores()
+```
+
+```{r}
+plan(sequential)
+```
+
+```{r}
+foreach::registerDoSEQ()
+```
+
+```{r}
+freqs <- table(train_clean$ment14d_cat)
+weights <- round(max(freqs) / freqs, 2)
+weights
+```
+
+
+```{r}
+rf_model <- rand_forest(
   mode = "classification",
   mtry = tune(),
   trees = 100,
   min_n = tune()
 ) %>%
-  set_engine("ranger", importance = "impurity") # Define Random Forest classification model using ranger engine
+  set_engine("ranger",
+             importance = "impurity",
+             class.weights = c(None = 1.00, Occasional = 2.33, Frequent = 4.43))
 ```
 
 ```{r}
@@ -702,6 +731,7 @@ set.seed(123) # Set up 5-fold cross-validation with stratified sampling on outco
 folds <- vfold_cv(train_clean, v = 5, strata = ment14d_cat) 
 ```
 
+
 ```{r}
 rf_results <- tune_grid( # Tune mtry and min_n using cross-validation
   rf_wf,
@@ -711,15 +741,6 @@ rf_results <- tune_grid( # Tune mtry and min_n using cross-validation
   control = control_grid(verbose = TRUE)
 )
 ```
-
-```{r}
-saveRDS(rf_results, "rf_results.rds")
-```
-
-```{r}
-file.info("rf_results.rds")
-```
-
 
 ```{r}
 best_rf <- select_best(x = rf_results, metric = "accuracy")  # Select hyperparameters with highest accuracy
