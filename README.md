@@ -4,6 +4,8 @@ By: Ben K., Chris R., and Steven S.
 ## Code Execution Flow
 The code within this project should be run in the following order to reproduce the results discovered from this reasearch:
 1) Download and run EDAcodes.RMD in RStudio.
+2) Run calcSplitRatio-3.R in RStudio and place in working directory
+3) Run Data Pre-Processing.Rmd in RStudio and place in working directory
 
 ## Project Background and Question
 ### Project Background

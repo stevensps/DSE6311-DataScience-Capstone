@@ -1,6 +1,6 @@
 ---
 title: "EDA"
-author: "Christopher Rodgers"
+author: "Steven S., Ben K., and Chris R."
 date: "2025-04-02"
 output:
   pdf_document: default
@@ -28,7 +28,7 @@ library(scales)
 ```
 
 
-# Import data
+# Import data - SS
 ```{r}
 # Code below imports the data to any person's machine
 if (!dir.exists("C:/temp")) {
@@ -120,8 +120,8 @@ brfss_subset <- brfss_subset %>%
   )
 
 ```
-
-```{r} # CR
+#CR
+```{r} 
 brfss_subset <- brfss_subset %>%
   mutate(
     race      = na_if(race, 77),
@@ -141,8 +141,8 @@ brfss_subset <- brfss_subset %>%
   )
 
 ```
-
-```{r} # CR
+#CR
+```{r}
 brfss_subset <- brfss_subset %>%
   mutate(
     menthlth = brfss_raw$MENTHLTH,
@@ -172,8 +172,8 @@ brfss_subset <- brfss_subset %>%
 table(brfss_subset$ment14d, useNA = "ifany")
 
 ```
-
-```{r} #CR
+#CR
+```{r}
 brfss_subset <- brfss_subset %>%
   mutate(
     ment14d_cat = case_when(
@@ -186,8 +186,8 @@ brfss_subset <- brfss_subset %>%
   )
 
 ```
-
-```{r} - CR
+#CR
+```{r}
 table(brfss_subset$ment14d_cat, useNA = "ifany")
 ```
 
@@ -198,15 +198,16 @@ table(brfss_subset$race, useNA = "ifany")
 table(brfss_subset$incomg1, useNA = "ifany")
 
 ```
-```{r} #CR
+#CR
+```{r} 
 brfss_subset <- brfss_subset %>%
   mutate(
     ment14d = na_if(ment14d, 9)
   )
 
 ```
-
-```{r} #CR
+#CR
+```{r}
 brfss_subset <- brfss_subset %>% 
   mutate(
     race = as.numeric(race),
@@ -251,7 +252,7 @@ brfss_subset <- brfss_subset %>%
 
 # Check conversion - CR
 ```{r}
-table(brfss_subset$hlthpl1, useNA = "ifany") #Noting class imbalance
+table(brfss_subset$hlthpl1, useNA = "ifany")
 
 ```
 ```{r}
@@ -383,11 +384,16 @@ ggplot(brfss_subset, aes(x = ment14d)) +
 ```
 # Ment14d by hlthpl1 boxplot
 ```{r}
-ggplot(brfss_subset, aes(x = ment14d)) +
-  geom_histogram(binwidth = 1, fill = "steelblue", color = "white") +
-  labs(title = "Distribution of Poor Mental Health Days", x = "Days", y = "Count") +
-  scale_y_continuous(labels = comma) +  # clean y-axis labels BK
-  theme_minimal()
+ggplot(brfss_subset, aes(x = hlthpl1, y = ment14d, fill = hlthpl1)) +
+  geom_boxplot() +
+  labs(title = "Poor Mental Health Days by Insurance Status",
+       x = "Insurance Status",
+       y = "Poor Mental Health Days (ment14d)") +
+  scale_y_continuous(labels = scales::comma) +  # Clean y-axis labels
+  scale_x_discrete(labels = c("No Insurance", "Has Insurance")) +  # Custom x-axis labels if needed
+  theme_minimal() +
+  theme(legend.position = "none")
+
 ```
 
 #exerany2 bar plot
@@ -423,7 +429,7 @@ ggplot(missing_summary, aes(x = reorder(variable, n_miss), y = n_miss)) +
   theme_minimal()
 ```
 
-#collinearity check
+#collinearity check - SS
 ```{r}
 brfss_numeric <- brfss_subset %>%
   select(age80, numadult, state, menthlth, checkup1) %>% 
@@ -433,7 +439,7 @@ corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.8)
 
 ```
 
-# Chi Squared iterative test (in report)
+# Chi Squared iterative test (in report) - SS
 ```{r}
 categoricalVars <- names(brfss_subset)[sapply(brfss_subset, is.factor)]
 chiResults <- list()
@@ -457,7 +463,7 @@ for (i in 1:(length(categoricalVars) - 1)) {
 
 significantchiResult <- Filter(function(x) x$p_value < 0.05, chiResults)
 ```
-# Chi-squared heatmap and table (in report)
+# Chi-squared heatmap and table (in report) - SS
 ```{r}
 chiResultsDF <- do.call(rbind, lapply(chiResults, function(x) {
   data.frame(
@@ -488,7 +494,7 @@ ggplot(melt(heatmapData, na.rm = TRUE), aes(Var1, Var2, fill = value)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) #SS - create heatmap
 ```
 
-## Generate Focused table with top results (in report)
+## Generate Focused table with top results (in report) - SS
 ```{r}
 topResultsHeat <- significantheatResult[order(-significantheatResult$statistic), ][1:10, ]
 print(topResultsHeat) #SS - Table to show only top 10 results based on statistic and p value less than 0.05
@@ -505,7 +511,7 @@ pca_result <- prcomp(brfss_numeric, scale. = TRUE)
 biplot(pca_result, main = "PCA Biplot (Centered & Scaled Variables)")
 ```
 
-# Pearson's Correlation to Measure Numeric
+# Pearson's Correlation to Measure Numeric - SS
 ```{r}
 cor.test(brfss_subset$age80, brfss_subset$numadult, method = "pearson")
 cor.test(brfss_subset$age80, brfss_subset$numadult, method = "spearman")
@@ -513,7 +519,7 @@ cor.test(brfss_subset$age80, brfss_subset$numadult, method = "spearman")
 ```
 
 
-# Generate ggpairs plots to examine collinearity and statistical significance (in report)
+# Generate ggpairs plots to examine collinearity and statistical significance (in report) - SS
 ```{r}
 pairsVars <- brfss_subset[, c("age80", "numadult", "state", "menthlth", "checkup1")]
 ggpairs(pairsVars) +
@@ -569,4 +575,78 @@ brfss_subset %>%
     sd_numadult = sd(numadult, na.rm = TRUE),
     iqr_numadult = IQR(numadult, na.rm = TRUE)
   )
+```
+
+############################ encoding categorical values ############################
+```{r}
+# Stratified Summary Statistics (mean, median, sd) of ment14 by insurance status  BK
+summary_stats <- brfss_subset %>%
+  group_by(hlthpl1) %>%
+  summarise(
+    mean_ment14 = mean(ment14d, na.rm = TRUE),
+    median_ment14 = median(ment14d, na.rm = TRUE),
+    sd_ment14 = sd(ment14d, na.rm = TRUE),
+    n = n()  # Number of observations in each group
+  ) %>%
+  mutate(
+    mean_ment14 = round(mean_ment14, 2),
+    median_ment14 = round(median_ment14, 2),
+    sd_ment14 = round(sd_ment14, 2)
+  )
+
+# View the table in R
+print(summary_stats)
+
+# Export the summary statistics table to a CSV file
+write.csv(summary_stats, "summary_statistics.csv", row.names = FALSE)
+```
+```{r}
+## BK
+library(dplyr)
+library(janitor)  # for clean_names()
+
+# Clean variable names (optional but helpful)
+brfss_subset <- brfss_subset %>% clean_names()
+
+# Binary Variables → Encode as 0 = No, 1 = Yes
+brfss_subset <- brfss_subset %>%
+  mutate(
+    hlthpl1 = ifelse(hlthpl1 == 1, 1, 0),
+    persdoc3 = ifelse(persdoc3 == 1, 1, 0),
+    medcost1 = ifelse(medcost1 == 1, 1, 0),
+    exerany2 = ifelse(exerany2 == 1, 1, 0)
+  )
+
+# Ordinal Variables → Encode as ordered factors
+brfss_subset <- brfss_subset %>%
+  mutate(
+    educa = factor(educa, levels = c(1,2,3,4,5,6), ordered = TRUE),
+    incomg1 = factor(incomg1, levels = c(1,2,3,4,5,6,7,8), ordered = TRUE),
+    checkup1 = factor(checkup1, levels = c(4,3,2,1), ordered = TRUE), # reverse order if necessary
+    marital = factor(marital, levels = c(5,6,3,4,1,2), ordered = TRUE) # adjust order as appropriate
+  )
+
+# Nominal Variables → Convert to factor for one-hot encoding later if needed
+brfss_subset <- brfss_subset %>%
+  mutate(
+    sex = factor(sex),
+    race = factor(race),
+    primins1 = factor(primins1),
+    employ1 = factor(employ1)
+  )
+```
+
+```{r}
+
+## BK 
+table(brfss_subset$hlthpl1, useNA = "ifany")
+```
+
+################################ one-hot encoding #######################################
+```{r}
+
+## BK
+library(fastDummies)
+ # convert nominal variables to dummy variables
+brfss_subset <- dummy_cols(brfss_subset, select_columns = c("sex", "race", "primins1", "employ1"), remove_first_dummy = TRUE, remove_selected_columns = TRUE)
 ```
