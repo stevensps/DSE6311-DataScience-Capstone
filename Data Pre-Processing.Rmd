@@ -633,7 +633,7 @@ library(nnet) # Load for multinomial logistic regression
 
 
 ```{r}
-multi_model <- multinom_reg(mode = "classification") %>% # Set up multinomial logistic model
+multi_model <- multinom_reg(mode = "classification") %>% # Set up multinomial logistic models
   set_engine("nnet")
 ```
 
