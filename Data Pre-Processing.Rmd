@@ -3,7 +3,9 @@
 title: "Data Pre-Processing"
 author: "Steven S., Ben K., and Chris R."
 date: "2025-04-10"
-output: html_document
+output:
+  word_document: default
+  html_document: default
 ---
 
 ```{r}
@@ -31,6 +33,12 @@ library(tidymodels)
 library(parallel)
 library(janitor)
 library(themis)
+library(nnet) # multinomial logistic regression
+library(ranger)      # Random Forest engine
+library(future)
+library(furrr)
+library(yardstick)
+library(xgboost)
 ```
 
 
@@ -100,14 +108,36 @@ brfss_subset <- brfss_subset %>%
   mutate(
     ment14d = na_if(ment14d, 9)
   )
+table(brfss_subset$ment14d, useNA = "ifany")
 ```
-
-# Drop N/A and Check ment14d
+# Collapse ment14d and create ment14d_cat
 ```{r}
 brfss_subset <- brfss_subset %>%
-  filter(!is.na(ment14d))
-
+  mutate(ment14d = case_when(
+    ment14d %in% c(1, 2) ~ 1,              # Low (0-13) days
+    !is.na(ment14d) ~ 2,                  # High (14+) days
+    TRUE ~ NA_real_                        
+  ))
 table(brfss_subset$ment14d, useNA = "ifany")
+
+brfss_subset <- brfss_subset %>%
+  mutate(ment14d_cat = case_when(
+    ment14d == 1 ~ "Low",                  # Low (0-13) days
+    !is.na(ment14d) ~ "High",             # High (14+) days
+    TRUE ~ NA_character_                        
+  )) %>%
+  mutate(ment14d_cat = factor(ment14d_cat, levels = c("Low", "High"))) %>%
+  select(-ment14d)
+
+table(brfss_subset$ment14d_cat, useNA = "ifany")
+```
+
+# Drop N/A and Check ment14d_cat
+```{r}
+brfss_subset <- brfss_subset %>%
+  filter(!is.na(ment14d_cat))
+
+table(brfss_subset$ment14d_cat, useNA = "ifany")
 ```
 
 # Split State into Region - CR
@@ -141,7 +171,7 @@ source("calcSplitRatio-3.R")
 split_ratio <- calcSplitRatio(df = brfss_subset)
 
 set.seed(42)
-trainIndex <- createDataPartition(brfss_subset$ment14d, p=split_ratio, list=FALSE)
+trainIndex <- createDataPartition(brfss_subset$ment14d_cat, p=split_ratio, list=FALSE)
 
 train_df <- brfss_subset[trainIndex, ]
 test_df <- brfss_subset[-trainIndex, ]
@@ -196,9 +226,9 @@ train_df <- train_df %>%
 table(train_df$menthlth)
 ```
 
-#Check ment14d
+#Check ment14d_cat
 ```{r}
-table(train_df$ment14d, useNA = "ifany")
+table(train_df$ment14d_cat, useNA = "ifany")
 ```
 
 ```{r}
@@ -256,9 +286,9 @@ test_df <-  test_df %>%
 table(test_df$menthlth)
 ```
 
-# Check ment14d
+# Check ment14d_cat
 ```{r}
-table(test_df$ment14d, useNA = "ifany")
+table(test_df$ment14d_cat, useNA = "ifany")
 ```
 
 ```{r}
@@ -338,10 +368,10 @@ train_df <- train_df %>%
 
 # One-hot encode all factor variables
 # Separate response variable
-response_var <- train_df$ment14d
+response_var <- train_df$ment14d_cat
 
 # Remove it temporarily from dataset to avoid encoding
-brfss_train_no_response <- train_df %>% select(-ment14d)
+brfss_train_no_response <- train_df %>% select(-ment14d_cat)
 
 # Encode predictors only
 brfss_train_encoded <- fastDummies::dummy_cols(
@@ -351,7 +381,7 @@ brfss_train_encoded <- fastDummies::dummy_cols(
 )
 
 # Add response variable back
-brfss_train_encoded$ment14d <- response_var
+brfss_train_encoded$ment14d_cat <- response_var 
 ```
 
 # Test Set Encoding
@@ -421,10 +451,10 @@ test_df <- test_df %>%
 
 # One-hot encode all factor variables
 # Separate response variable
-response_var_test <- test_df$ment14d
+response_var_test <- test_df$ment14d_cat
 
 # Remove it temporarily from dataset to avoid encoding
-brfss_test_no_response <- test_df %>% select(-ment14d)
+brfss_test_no_response <- test_df %>% select(-ment14d_cat)
 
 # Encode predictors only
 brfss_test_encoded <- fastDummies::dummy_cols(
@@ -434,7 +464,7 @@ brfss_test_encoded <- fastDummies::dummy_cols(
 )
 
 # Add response variable back
-brfss_test_encoded$ment14d <- response_var_test
+brfss_test_encoded$ment14d_cat <- response_var_test
 
 missing_cols <- setdiff(colnames(brfss_train_encoded), colnames(brfss_test_encoded))
 print(missing_cols)
@@ -470,63 +500,60 @@ brfss_test_encoded <- brfss_test_encoded[, colnames(brfss_train_encoded)]
 predMatrix <- quickpred(brfss_train_encoded, mincor = 0.2) #Create Prediction matrix to only use variables for comparison with correlation greater than 0.2
 
 set.seed(123)
-imputedTrain <- parlmice(brfss_train_encoded, #parlmice to introduce parallel processing
+plan(multisession) #Enable multisession parallel processing in R
+
+set.seed(123)
+imputedTrain <- futuremice(brfss_train_encoded, #parlmice to introduce parallel processing
                          m = 1, 
                          method = "pmm", #PMM made sense given encoding. Fits regression model, and then estimates predicted values using random sampling from matched values.
                          maxit = 8,
-                         predictorMatrix = predMatrix,
-                         n.core = 4,
-                         n.imp.core = 1)
+                         predictorMatrix = predMatrix)
 plot(imputedTrain)
 trainimputeFinal <- complete(imputedTrain)
-trainimputeFinal$ment14d <- train_df$ment14d
+trainimputeFinal$ment14d_cat <- train_df$ment14d_cat
+
+logged_warnings <- imputedTrain$loggedEvents
+problematic_vars <- unique(logged_warnings$dep)
+problematic_vars <- problematic_vars[problematic_vars %in% colnames(brfss_train_encoded)]
+missing_vars <- problematic_vars[!problematic_vars %in% colnames(brfss_train_encoded)]
+missing_vars
+
+# Check numeric
+problematic_numeric_vars <- problematic_vars[sapply(brfss_train_encoded[problematic_vars], is.numeric)]
+
+# Check nominal (categorical)
+problematic_nominal_vars <- problematic_vars[sapply(brfss_train_encoded[problematic_vars], function(x) is.factor(x) || is.character(x))]
 
 #Impute Test
 set.seed(123)
-imputedTest <- parlmice(brfss_test_encoded, 
+imputedTest <- futuremice(brfss_test_encoded, 
                          m = 1, 
                          method = "pmm", 
                          maxit = 8,
-                         predictorMatrix = predMatrix,
-                         n.core = 4,
-                         n.imp.core = 1)
+                         predictorMatrix = predMatrix)
 plot(imputedTest)
 testimputeFinal <- complete(imputedTest)
-testimputeFinal$ment14d <- test_df$ment14d
+testimputeFinal$ment14d_cat <- test_df$ment14d_cat
+```
+# Fix primins1_88 NA values- SS
+```{r}
+# Train
+trainimputeFinal <- trainimputeFinal %>%
+  mutate(primins1_88 = if_else(is.na(primins1_88), mean(primins1_88, na.rm = TRUE), primins1_88))
+
+#Test
+testimputeFinal <- testimputeFinal %>%
+  mutate(primins1_88 = if_else(is.na(primins1_88), mean(primins1_88, na.rm = TRUE), primins1_88))
 ```
 ##########################################################################New Code for Initial Modeling############################################################################################################
 
-## Creating Categorical Target Variable ('ment14d_cat')- CR
 ```{r}
-trainimputeFinal <- trainimputeFinal %>%
-  mutate(ment14d_cat = case_when(
-    ment14d == 1 ~ "None",         # 0 days
-    ment14d == 2 ~ "Occasional",   # 1–13 days
-    ment14d == 3 ~ "Frequent",     # 14+ days
-    TRUE ~ NA_character_
-  ))
-
-testimputeFinal <- testimputeFinal %>%
-  mutate(ment14d_cat = case_when(
-    ment14d == 1 ~ "None",
-    ment14d == 2 ~ "Occasional",
-    ment14d == 3 ~ "Frequent",
-    TRUE ~ NA_character_
-  ))
-
-trainimputeFinal$ment14d_cat <- factor(trainimputeFinal$ment14d_cat, levels = c("None", "Occasional", "Frequent"))
-testimputeFinal$ment14d_cat <- factor(testimputeFinal$ment14d_cat, levels = c("None", "Occasional", "Frequent"))
-```
-
-
-```{r}
+# Convert all interger columns to numeric
 train_clean <- trainimputeFinal %>%
-  mutate(across(where(is.integer), as.numeric)) %>%
-  select(-ment14d)  # Remove the original numeric target to prevent leakage
+  mutate(across(where(is.integer), as.numeric))
 
 test_clean <- testimputeFinal %>%
-  mutate(across(where(is.integer), as.numeric)) %>%
-  select(-ment14d)
+  mutate(across(where(is.integer), as.numeric))
 ```
 
 
@@ -534,9 +561,9 @@ test_clean <- testimputeFinal %>%
 ```{r}
 recipe <- recipe(ment14d_cat ~ ., data = train_clean) %>%
   update_role(menthlth, state, new_role = "id") %>%
-  step_impute_mean(all_numeric_predictors()) %>%
-  step_impute_mode(all_nominal_predictors()) %>%
-  step_dummy(all_nominal_predictors(), one_hot = TRUE) %>%
+  step_impute_mean(all_of(problematic_numeric_vars)) %>%
+  step_impute_mode(all_of(problematic_nominal_vars)) %>%
+  #step_dummy(all_nominal_predictors(), one_hot = TRUE) %>%
   step_zv(all_predictors()) %>%
   step_center(all_numeric_predictors()) %>%
   step_scale(all_numeric_predictors())
@@ -550,6 +577,17 @@ testdataFinal <- bake(preparedRecipe, new_data = test_clean)
 dim(traindataFinal)
 dim(testdataFinal)
 head(traindataFinal)
+
+# Identify columns with remaining NAs
+columns_with_na <- colnames(traindataFinal)[colSums(is.na(traindataFinal)) > 0]
+
+# View all rows with NAs for those columns
+rows_with_na <- traindataFinal %>%
+  filter(if_any(all_of(columns_with_na), is.na))
+
+# Display the columns with NA and the affected rows
+columns_with_na
+rows_with_na
 ```
 
 ```{r}
@@ -611,105 +649,105 @@ table(Actual = pca_scores$ment14d_cat, Cluster = pca_scores$cluster) # Compare c
 
 ##### Modeling #####
 
-
+#GLM - CR
 ```{r}
-library(nnet) # Load for multinomial logistic regression
-```
-
-
-```{r}
-multi_model <- multinom_reg(mode = "classification") %>% # Set up multinomial logistic model
-  set_engine("nnet")
+glm_model <- logistic_reg(mode = "classification") %>% # logistic regression model for classification
+  set_engine("glm")
 ```
 
 ```{r}
-multi_wf <- workflow() %>% # Create workflow with recipe and multinomial model
-  add_model(multi_model) %>%
+glm_wf <- workflow() %>% # workflow with our model and recipe
+  add_model(glm_model) %>%
   add_recipe(recipe)
 ```
 
 ```{r}
-multi_fit <- fit(multi_wf, data = traindataFinal) # Fit model using preprocessed training data
+glm_fit <- fit(glm_wf, data = traindataFinal) # Fit logistic regression model to training data
 ```
 
 ```{r}
-multi_preds <- predict(multi_fit, new_data = testdataFinal) # Predict class labels for test set
+glm_probs <- predict(glm_fit, new_data = testdataFinal, type = "prob") # Predict probabilities for test set
 ```
 
 ```{r}
-multi_probs <- predict(multi_fit, new_data = testdataFinal, type = "prob") # Predict class probabilities
+glm_results_prob <- bind_cols(testdataFinal, glm_probs) # Attach predicted probabilites to test data
+
+glm_results_prob <- glm_results_prob %>%
+  mutate(pred_class_custom = if_else(.pred_High >= 0.25, "High", "Low")) %>% # Custom threshold
+  mutate(pred_class_custom = factor(pred_class_custom, levels = c("Low", "High")))
 ```
 
 ```{r}
-test_results <- bind_cols(testdataFinal, multi_preds) %>% # Combine predictions with test set
-  rename(pred_class = .pred_class) # Rename predicted class
+conf_mat(glm_results_prob, truth = ment14d_cat, estimate = pred_class_custom) # Confusion matrix seeing how predictions line up with actual classes
+
+metrics(glm_results_prob, truth = ment14d_cat, estimate = pred_class_custom) # Performance metrics
+
+recall(glm_results_prob, truth = ment14d_cat, estimate = pred_class_custom, event_level = "second") # recall for High class
+precision(glm_results_prob, truth = ment14d_cat, estimate = pred_class_custom, event_level = "second") # Precision for High class
 ```
 
 ```{r}
-accuracy(test_results, truth = ment14d_cat, estimate = pred_class) # Calculate classification accuracy on test set
-```
+set.seed(123) # Cross validation: 5 fold stratified 
+folds <- vfold_cv(train_clean, v = 5, strata = ment14d_cat) 
 
-```{r}
-conf_mat(test_results, truth = ment14d_cat, estimate = pred_class) # Confusion matrix to evaluate prediction breakdown across categories
-```
-
-```{r}
-set.seed(123)
-folds <- vfold_cv(train_clean, v = 5, strata = ment14d_cat) # Create 5-fold cross validation with stratification on target variable
-
-```
-
-```{r}
-multi_model <- multinom_reg(mode = "classification") %>% # Define multinomial logistic regression model for classification
-  set_engine("nnet")
-
-multi_wf <- workflow() %>% # Create workflow using formula interface with multinomial model
-  add_model(multi_model) %>%
-  add_formula(ment14d_cat ~ .)
-
-```
-
-```{r}
-cv_results <- fit_resamples( # Perform 5-fold cross validation and save prediction
-  multi_wf,
+cv_results <- fit_resamples( # Fit model across cross validation fold
+  glm_wf,
   resamples = folds,
-  metrics = metric_set(yardstick::accuracy),
+  metrics = metric_set(accuracy),
   control = control_resamples(save_pred = TRUE)
 )
 
+collect_metrics(cv_results) # Accuracy results
 ```
 
 ```{r}
-collect_metrics(cv_results) # Mean accuracy across cross validation folds
-
+glm_results_prob %>% # Recall by actual class
+  group_by(ment14d_cat) %>%
+  yardstick::recall(truth = ment14d_cat, estimate = pred_class_custom, event_level = "second")
 ```
 
 ```{r}
-library(ranger)      # Random Forest engine
-library(future) 
+recall_low <- recall( # Manually calculate recall for each class 
+  glm_results_prob,
+  truth = ment14d_cat,
+  estimate = pred_class_custom,
+  event_level = "first"
+) %>%
+  mutate(class = "Low")
+
+recall_high <- recall(
+  glm_results_prob,
+  truth = ment14d_cat,
+  estimate = pred_class_custom,
+  event_level = "second"
+) %>%
+  mutate(class = "High")
+
+bind_rows(recall_low, recall_high) # Combine recall results
+```
+
+#Random Forest - CR
+```{r}
+parallel::detectCores() # How many CPU cores are available
 ```
 
 ```{r}
-parallel::detectCores()
+plan(sequential) # Parallel plan to sequential
 ```
 
 ```{r}
-plan(sequential)
+foreach::registerDoSEQ() # Register sequential backend for each lopp
 ```
 
 ```{r}
-foreach::registerDoSEQ()
-```
-
-```{r}
-freqs <- table(train_clean$ment14d_cat)
+freqs <- table(train_clean$ment14d_cat) # Calculate class weights based on imbalance
 weights <- round(max(freqs) / freqs, 2)
 weights
 ```
 
 
 ```{r}
-rf_model <- rand_forest(
+rf_model <- rand_forest( # Random forest model with tuning for mtry and min_n
   mode = "classification",
   mtry = tune(),
   trees = 100,
@@ -717,7 +755,7 @@ rf_model <- rand_forest(
 ) %>%
   set_engine("ranger",
              importance = "impurity",
-             class.weights = c(None = 1.00, Occasional = 2.33, Frequent = 4.43))
+             class.weights = c(Low = 1.00, High = 6.32)) # Using class weights to balance Low and High
 ```
 
 ```{r}
@@ -733,21 +771,31 @@ folds <- vfold_cv(train_clean, v = 5, strata = ment14d_cat)
 
 
 ```{r}
-rf_results <- tune_grid( # Tune mtry and min_n using cross-validation
-  rf_wf,
-  resamples = folds,
-  grid = 3,
-  metrics = metric_set(yardstick::accuracy),
-  control = control_grid(verbose = TRUE)
-)
+if (file.exists("rf_results.rds")) {
+  rf_results <- readRDS("rf_results.rds")
+} else {
+  rf_results <- tune_grid(
+    rf_wf,
+    resamples = folds,
+    grid = 3,
+    metrics = metric_set(yardstick::accuracy),
+    control = control_grid(verbose = TRUE)
+  )
+  saveRDS(rf_results, "rf_results.rds")
+}
 ```
+
+```{r}
+saveRDS(rf_results, "rf_results.rds")
+```
+
 
 ```{r}
 best_rf <- select_best(x = rf_results, metric = "accuracy")  # Select hyperparameters with highest accuracy
 ```
 
 ```{r}
-rf_model_final <- rand_forest(
+rf_model_final <- rand_forest( # Finalize RF model with best mtry and min_n values
   mode = "classification",
   mtry = best_rf$mtry,
   trees = 100,
@@ -757,14 +805,14 @@ rf_model_final <- rand_forest(
 ```
 
 ```{r}
-final_rf_wf <- workflow() %>%
+final_rf_wf <- workflow() %>% # Finalized model workflow
   add_model(rf_model_final) %>%
   add_recipe(recipe)
 ```
 
 
 ```{r}
-final_rf_fit <- fit(final_rf_wf, data = traindataFinal)
+final_rf_fit <- fit(final_rf_wf, data = traindataFinal) # Fit final RF model to training dataset
 ```
 
 ```{r}
@@ -774,51 +822,175 @@ rf_probs <- predict(final_rf_fit, new_data = testdataFinal, type = "prob") # Pre
 ```
 
 ```{r}
-rf_results_final <- bind_cols(testdataFinal, rf_preds) %>% # Combine predictions with test set
-  rename(pred_class = .pred_class)
-
-accuracy(rf_results_final, truth = ment14d_cat, estimate = pred_class) # Accuracy
-
-conf_mat(rf_results_final, truth = ment14d_cat, estimate = pred_class) # Confusion matrix
+rf_results_prob <- bind_cols(testdataFinal, rf_probs) %>% # Combine predictions with test data
+  mutate(pred_class_custom = if_else(.pred_High >= 0.25, "High", "Low")) %>% # Classify High if probability is greater than or equal to .25
+  mutate(pred_class_custom = factor(pred_class_custom, levels = c("Low", "High")))
 ```
 
-```{r}
-library(yardstick)
-```
 
 ```{r}
-rf_results_final <- bind_cols(testdataFinal, rf_preds)
+metrics(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom) # Evaluate performance
 
-rf_results_final %>%
-  metrics(truth = ment14d_cat, estimate = .pred_class)
-```
+recall(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom, event_level = "second")
+precision(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom, event_level = "second")
 
-```{r}
-rf_results_final %>%
-  metrics(truth = ment14d_cat, estimate = .pred_class)
-```
-
-```{r}
-rf_results_final %>%
-  group_by(ment14d_cat) %>%
-  yardstick::precision(truth = ment14d_cat, estimate = .pred_class)
-```
-
-```{r}
-rf_results_final %>%
-  group_by(ment14d_cat) %>%
-  yardstick::recall(truth = ment14d_cat, estimate = .pred_class)
-```
-
-```{r}
-conf_mat(rf_results_final, truth = ment14d_cat, estimate = .pred_class) %>%
+conf_mat(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom) %>% # Visualize the confusion matrix as a heatmap
   autoplot(type = "heatmap") +
-  ggtitle("Random Forest Confusion Matrix (Test Set)") +
+  ggtitle("Random Forest Confusion Matrix (Threshold = 0.25)") +
   theme_minimal()
 ```
 
 ```{r}
-final_rf_fit %>% # Show variable importance
+# Recall Low and High
+recall_low_rf <- recall(
+  rf_results_prob,
+  truth = ment14d_cat,
+  estimate = pred_class_custom,
+  event_level = "first"
+) %>%
+  mutate(class = "Low")
+
+recall_high_rf <- recall(
+  rf_results_prob,
+  truth = ment14d_cat,
+  estimate = pred_class_custom,
+  event_level = "second"
+) %>%
+  mutate(class = "High")
+
+bind_rows(recall_low_rf, recall_high_rf) # Combine recall results
+```
+
+
+```{r}
+final_rf_fit %>% # Show variable importance: Top 15
   extract_fit_parsnip() %>% 
   vip::vip(num_features = 15)
 ```
+
+# XGBoost - SS
+```{r}
+plan(sequential)
+
+xgboost_model <- boost_tree(
+  mode = "classification",
+  trees = tune(),
+  tree_depth = tune(),
+  learn_rate = tune(),
+  loss_reduction = tune(),
+  sample_size = tune(),
+  min_n = tune()
+) %>%
+  set_engine("xgboost")
+
+xgboost_wf <- workflow() %>%
+  add_model(xgboost_model) %>%
+  add_recipe(recipe)
+
+xgboost_grid <- grid_space_filling(
+  trees(range = c(100, 300)),
+  tree_depth(range = c(3, 10)),
+  learn_rate(range = c(0.01, 0.3)),
+  loss_reduction(range = c(0, 5)),
+  sample_size = sample_prop(range = c(0.5, 1)),
+  min_n(range = c(1, 10)),
+  size = 6
+)
+
+if (file.exists("final_xg_fit.rds")) {
+  final_xg_fit <- readRDS("final_xg_fit.rds")
+} else {
+  set.seed(42)
+  
+  grid_tune <- tune_grid(
+    xgboost_wf,
+    resamples = folds,
+    grid = xgboost_grid,
+    metrics = metric_set(accuracy, kap, recall),
+    control = control_grid(verbose = TRUE, save_pred = TRUE)
+  )
+  
+  bestgrid_xgboost <- select_best(grid_tune, metric = "accuracy")
+  
+  final_xg_wf <- finalize_workflow(xgboost_wf, bestgrid_xgboost)
+  
+  final_xg_fit <- fit(final_xg_wf, data = traindataFinal)
+  
+  saveRDS(final_xg_fit, "final_xg_fit.rds")
+}
+```
+
+#XG Boost Predictions - SS
+```{r}
+xgboost_preds <- predict(final_xg_fit, new_data = testdataFinal)
+
+xgboost_results <- bind_cols(testdataFinal, xgboost_preds) %>%
+  rename(pred_class = .pred_class)
+
+accuracy(xgboost_results, truth = ment14d_cat, estimate = pred_class)
+
+conf_mat(xgboost_results, truth = ment14d_cat, estimate = pred_class) %>%
+  autoplot(type = "heatmap") +
+  ggtitle("XGBoost Confusion Matrix (Default Threshold)") +
+  theme_minimal()
+```
+
+```{r}
+xgboost_probs <- predict(final_xg_fit, new_data = testdataFinal, type = "prob") # Predict probabilities; apply 0.25 threshold
+
+xgboost_results_prob <- bind_cols(testdataFinal, xgboost_probs) %>%
+  mutate(pred_class_custom = if_else(.pred_High >= 0.25, "High", "Low")) %>%
+  mutate(pred_class_custom = factor(pred_class_custom, levels = c("Low", "High")))
+```
+
+```{r}
+metrics(xgboost_results_prob, truth = ment14d_cat, estimate = pred_class_custom) # Metrics using 0.25 threshold
+
+conf_mat(xgboost_results_prob, truth = ment14d_cat, estimate = pred_class_custom) %>% # Confusion matrix using 0.25 threshold
+  autoplot(type = "heatmap") +
+  ggtitle("XGBoost Confusion Matrix (Threshold = 0.25)") +
+  theme_minimal()
+```
+
+```{r}
+# Recall Low and High
+recall_low <- recall(
+  xgboost_results_prob,
+  truth = ment14d_cat,
+  estimate = pred_class_custom,
+  event_level = "first"
+) %>%
+  mutate(class = "Low")
+
+recall_high <- recall(
+  xgboost_results_prob,
+  truth = ment14d_cat,
+  estimate = pred_class_custom,
+  event_level = "second"
+) %>%
+  mutate(class = "High")
+
+bind_rows(recall_low, recall_high)
+```
+
+```{r}
+# Precision for High and Low
+precision_low <- precision(
+  xgboost_results_prob,
+  truth = ment14d_cat,
+  estimate = pred_class_custom,
+  event_level = "first"
+) %>%
+  mutate(class = "Low")
+
+precision_high <- precision(
+  xgboost_results_prob,
+  truth = ment14d_cat,
+  estimate = pred_class_custom,
+  event_level = "second"
+) %>%
+  mutate(class = "High")
+
+bind_rows(precision_low, precision_high)
+```
+
