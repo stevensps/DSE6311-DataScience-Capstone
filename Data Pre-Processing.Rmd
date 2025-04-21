@@ -39,6 +39,7 @@ library(future)
 library(furrr)
 library(yardstick)
 library(xgboost)
+library(vip)
 ```
 
 
@@ -994,3 +995,6 @@ precision_high <- precision(
 bind_rows(precision_low, precision_high)
 ```
 
+```{r}
+vip(final_xg_fit, num_features = 15)
+```
