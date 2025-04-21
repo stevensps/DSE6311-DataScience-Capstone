@@ -772,9 +772,6 @@ folds <- vfold_cv(train_clean, v = 5, strata = ment14d_cat)
 
 
 ```{r}
-if (file.exists("rf_results.rds")) {
-  rf_results <- readRDS("rf_results.rds")
-} else {
   rf_results <- tune_grid(
     rf_wf,
     resamples = folds,
@@ -782,14 +779,7 @@ if (file.exists("rf_results.rds")) {
     metrics = metric_set(yardstick::accuracy),
     control = control_grid(verbose = TRUE)
   )
-  saveRDS(rf_results, "rf_results.rds")
-}
 ```
-
-```{r}
-saveRDS(rf_results, "rf_results.rds")
-```
-
 
 ```{r}
 best_rf <- select_best(x = rf_results, metric = "accuracy")  # Select hyperparameters with highest accuracy
@@ -898,27 +888,21 @@ xgboost_grid <- grid_space_filling(
   size = 6
 )
 
-if (file.exists("final_xg_fit.rds")) {
-  final_xg_fit <- readRDS("final_xg_fit.rds")
-} else {
-  set.seed(42)
-  
-  grid_tune <- tune_grid(
-    xgboost_wf,
-    resamples = folds,
-    grid = xgboost_grid,
-    metrics = metric_set(accuracy, kap, recall),
-    control = control_grid(verbose = TRUE, save_pred = TRUE)
-  )
-  
-  bestgrid_xgboost <- select_best(grid_tune, metric = "accuracy")
-  
-  final_xg_wf <- finalize_workflow(xgboost_wf, bestgrid_xgboost)
-  
-  final_xg_fit <- fit(final_xg_wf, data = traindataFinal)
-  
-  saveRDS(final_xg_fit, "final_xg_fit.rds")
-}
+set.seed(42)
+
+grid_tune <- tune_grid(
+  xgboost_wf,
+  resamples = folds,
+  grid = xgboost_grid,
+  metrics = metric_set(accuracy, kap, recall),
+  control = control_grid(verbose = TRUE, save_pred = TRUE)
+)
+
+bestgrid_xgboost <- select_best(grid_tune, metric = "accuracy")
+
+final_xg_wf <- finalize_workflow(xgboost_wf, bestgrid_xgboost)
+
+final_xg_fit <- fit(final_xg_wf, data = traindataFinal)
 ```
 
 #XG Boost Predictions - SS
