@@ -35,13 +35,15 @@ library(janitor)
 library(themis)
 library(nnet) # multinomial logistic regression
 library(ranger)      # Random Forest engine
-library(future)
 library(furrr)
 library(yardstick)
 library(xgboost)
 library(vip)
 library(future)
+library(doParallel)
+library(dials)
 ```
+
 
 
 # Import data
@@ -550,7 +552,7 @@ testimputeFinal <- testimputeFinal %>%
 ##########################################################################New Code for Initial Modeling############################################################################################################
 
 ```{r}
-# Convert all interger columns to numeric
+# Convert all integer columns to numeric
 train_clean <- trainimputeFinal %>%
   mutate(across(where(is.integer), as.numeric))
 
@@ -563,10 +565,10 @@ test_clean <- testimputeFinal %>%
 ```{r}
 recipe <- recipe(ment14d_cat ~ ., data = train_clean) %>%
   update_role(menthlth, state, new_role = "id") %>%
-  step_impute_mean(all_of(problematic_numeric_vars)) %>%
-  step_impute_mode(all_of(problematic_nominal_vars)) %>%
-  # step_impute_mean(all_numeric_predictors()) %>% # used for xgboost scale_pos_weight
-  # step_impute_mode(all_nominal_predictors()) %>% # used for xgboost scale_pos_weight
+  #step_impute_mean(all_of(problematic_numeric_vars)) %>%
+  #step_impute_mode(all_of(problematic_nominal_vars)) %>%
+  step_impute_mean(all_numeric_predictors()) %>% # used for xgboost scale_pos_weight
+  step_impute_mode(all_nominal_predictors()) %>% # used for xgboost scale_pos_weight
   step_upsample(ment14d_cat) %>%
   #step_dummy(all_nominal_predictors(), one_hot = TRUE) %>%
   step_zv(all_predictors()) %>%
@@ -733,16 +735,10 @@ bind_rows(recall_low, recall_high) # Combine recall results
 
 #Random Forest - CR
 ```{r}
-parallel::detectCores() # How many CPU cores are available
+library(future)
+plan(sequential)
 ```
 
-```{r}
-plan(sequential) # Parallel plan to sequential
-```
-
-```{r}
-foreach::registerDoSEQ() # Register sequential backend for each lopp
-```
 
 ```{r}
 freqs <- table(train_clean$ment14d_cat) # Calculate class weights based on imbalance
@@ -752,15 +748,18 @@ weights
 
 
 ```{r}
-rf_model <- rand_forest( # Random forest model with tuning for mtry and min_n
+rf_model <- rand_forest(
   mode = "classification",
   mtry = tune(),
-  trees = 100,
+  trees = tune(),
   min_n = tune()
 ) %>%
-  set_engine("ranger",
-             importance = "impurity",
-             class.weights = c(Low = 1.00, High = 6.32)) # Using class weights to balance Low and High
+  set_engine(
+    "ranger",
+    importance = "impurity",
+    splitrule = "extratrees",
+    class.weights = c(Low = 1.00, High = 6.32)
+  )
 ```
 
 ```{r}
@@ -774,41 +773,61 @@ set.seed(123) # Set up 5-fold cross-validation with stratified sampling on outco
 folds <- vfold_cv(train_clean, v = 5, strata = ment14d_cat) 
 ```
 
-
 ```{r}
-  rf_results <- tune_grid(
-    rf_wf,
-    resamples = folds,
-    grid = 3,
-    metrics = metric_set(yardstick::accuracy),
-    control = control_grid(verbose = TRUE)
-  )
-```
-
-```{r}
-best_rf <- select_best(x = rf_results, metric = "accuracy")  # Select hyperparameters with highest accuracy
-```
-
-```{r}
-rf_model_final <- rand_forest( # Finalize RF model with best mtry and min_n values
-  mode = "classification",
-  mtry = best_rf$mtry,
-  trees = 100,
-  min_n = best_rf$min_n
-) %>%
-  set_engine("ranger", importance = "impurity")
-```
-
-```{r}
-final_rf_wf <- workflow() %>% # Finalized model workflow
-  add_model(rf_model_final) %>%
-  add_recipe(recipe)
+exists("max_depth", where = "package:dials")
 ```
 
 
 ```{r}
-final_rf_fit <- fit(final_rf_wf, data = traindataFinal) # Fit final RF model to training dataset
+rf_grid <- grid_random(
+  trees(range = c(100, 500)),
+  mtry(range = c(3, 15)),
+  min_n(range = c(1, 10)),
+  size = 3
+)
 ```
+
+
+```{r}
+start_time <- Sys.time()
+
+rf_results <- tune_grid(
+  rf_wf,
+  resamples = folds,
+  grid = rf_grid,
+  metrics = metric_set(accuracy, recall, precision, kap),
+  control = control_grid(verbose = TRUE, allow_par = TRUE)
+)
+
+end_time <- Sys.time()
+
+end_time - start_time
+
+print(end_time - start_time)
+
+autoplot(rf_results) +
+  ggtitle("Random Forest Tuning Results") +
+  theme_minimal()
+```
+
+
+
+```{r}
+show_best(rf_results, metric = "recall", n = 5)
+
+best_rf <- select_best(rf_results, metric = "recall")
+print(best_rf)
+```
+
+```{r}
+final_rf_wf <- finalize_workflow(
+  rf_wf,
+  best_rf
+)
+
+final_rf_fit <- fit(final_rf_wf, data = train_clean) # Fit the finalized model
+```
+
 
 ```{r}
 rf_preds <- predict(final_rf_fit, new_data = testdataFinal) # Predict classes on test set using finalized Random Forest model
@@ -863,6 +882,15 @@ final_rf_fit %>% # Show variable importance: Top 15
   vip::vip(num_features = 15)
 ```
 
+```{r}
+metrics(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom) %>%
+  bind_rows(
+    recall(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom, event_level = "second") %>% mutate(.metric = "recall_high"),
+    precision(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom, event_level = "second") %>% mutate(.metric = "precision_high")
+  )
+```
+
+
 # XGBoost - SS
 ```{r}
 plan(multisession)
@@ -911,6 +939,25 @@ final_xg_fit <- fit(final_xg_wf, data = traindataFinal)
 ```
 ```{r}
 final_xg_fit <- fit(final_xg_wf, data = train_clean)
+```
+
+```{r}
+recall_compare <- data.frame(
+  Dataset = c("Training CV Recall", "Test Set Recall"),
+  Recall = c(0.927, 0.764)
+)
+
+ggplot(recall_compare, aes(x = Dataset, y = Recall, fill = Dataset)) +
+  geom_col(width = 0.5) +
+  geom_text(aes(label = scales::percent(Recall, accuracy = 0.1)), vjust = -0.5, size = 5) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  labs(
+    title = "Training vs. Test Recall (High Class)",
+    y = "Recall (%)",
+    x = NULL
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
 ```
 
 
