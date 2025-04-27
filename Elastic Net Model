@@ -1,0 +1,63 @@
+############################# elastic net ######################################
+################################################################################
+
+######## specify an elastic net model ########
+```{r}
+elastic_model <- 
+  logistic_reg(penalty = tune(), mixture = tune()) %>%  # penalty = lambda, mixture = alpha
+  set_engine("glmnet") %>% 
+  set_mode("classification")
+```
+
+######## set up workflow ########
+```{r}
+elastic_wf <- 
+  workflow() %>%
+  add_model(elastic_model) %>%
+  add_formula(ment14d_cat ~ .)  # or use your prepped recipe instead of formula if you have one
+```
+
+######## set up tuning grid ########
+```{r}
+elastic_grid <- grid_regular(
+  penalty(range = c(-4, 0)),  # log10 scale; adjusts from 1e-4 to 1
+  mixture(range = c(0, 1)),   # from pure Ridge (0) to pure LASSO (1)
+  levels = 5
+)
+```
+
+######## create cross validation folds #########
+```{r}
+set.seed(123)
+cv_folds <- vfold_cv(traindataFinal, v = 5, strata = ment14d_cat)
+```
+
+######## fit cross-validation ########
+```{r}
+set.seed(123)
+elastic_tuned <- tune_grid(
+  elastic_wf,
+  resamples = cv_folds,  # e.g., vfold_cv(train_data, v=5)
+  grid = elastic_grid,
+  metrics = metric_set(roc_auc, accuracy, recall, precision)
+)
+```
+
+######## finalize best parameters ########
+```{r}
+best_elastic <- select_best(elastic_tuned, metric = "roc_auc")
+
+final_elastic_wf <- finalize_workflow(elastic_wf, best_elastic)
+
+final_elastic_fit <- fit(final_elastic_wf, data = traindataFinal)
+```
+
+######## predict on test data ########
+```{r}
+elastic_preds <- predict(final_elastic_fit, testdataFinal, type = "prob") %>%
+  bind_cols(predict(final_elastic_fit, testdataFinal)) %>%
+  bind_cols(testdataFinal %>% select(ment14d_cat))
+
+# then evaluate like you did with random forest
+metrics(elastic_preds, truth = ment14d_cat, estimate = .pred_class)
+```
