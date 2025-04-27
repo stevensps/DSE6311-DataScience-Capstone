@@ -13,7 +13,7 @@ This project explores the relationship between access to healthcare and the like
 - If access to healthcare predicts self-reported mental health outcomes.
 - Best practices for applying ML to large, weighted survey datasets.
 ### Project Question
-To what extent is self-reported mental health influenced by access to healthcare?
+Can we predict poor mental health outcomes, measured by self-report, among Americans by access to healthcare, after controlling for mental illness, demographics and other exposures?
 ## Hypothesis and Prediction
 ### Hypothesis
 Healthcare access has a significant bearing on self-reported mental health outcomes because individuals without sufficient access are likely to suffer from unresolved mental health issues, along with higher stress levels and lower utilization of essential health services.
