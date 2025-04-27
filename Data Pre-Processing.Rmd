@@ -40,6 +40,7 @@ library(furrr)
 library(yardstick)
 library(xgboost)
 library(vip)
+library(future)
 ```
 
 
@@ -564,6 +565,9 @@ recipe <- recipe(ment14d_cat ~ ., data = train_clean) %>%
   update_role(menthlth, state, new_role = "id") %>%
   step_impute_mean(all_of(problematic_numeric_vars)) %>%
   step_impute_mode(all_of(problematic_nominal_vars)) %>%
+  # step_impute_mean(all_numeric_predictors()) %>% # used for xgboost scale_pos_weight
+  # step_impute_mode(all_nominal_predictors()) %>% # used for xgboost scale_pos_weight
+  step_upsample(ment14d_cat) %>%
   #step_dummy(all_nominal_predictors(), one_hot = TRUE) %>%
   step_zv(all_predictors()) %>%
   step_center(all_numeric_predictors()) %>%
@@ -861,7 +865,7 @@ final_rf_fit %>% # Show variable importance: Top 15
 
 # XGBoost - SS
 ```{r}
-plan(sequential)
+plan(multisession)
 
 xgboost_model <- boost_tree(
   mode = "classification",
@@ -872,7 +876,7 @@ xgboost_model <- boost_tree(
   sample_size = tune(),
   min_n = tune()
 ) %>%
-  set_engine("xgboost")
+  set_engine("xgboost", scale_pos_weight = tune())
 
 xgboost_wf <- workflow() %>%
   add_model(xgboost_model) %>%
@@ -885,6 +889,7 @@ xgboost_grid <- grid_space_filling(
   loss_reduction(range = c(0, 5)),
   sample_size = sample_prop(range = c(0.5, 1)),
   min_n(range = c(1, 10)),
+  scale_pos_weight(range = c(1, 10)),
   size = 6
 )
 
@@ -898,21 +903,25 @@ grid_tune <- tune_grid(
   control = control_grid(verbose = TRUE, save_pred = TRUE)
 )
 
-bestgrid_xgboost <- select_best(grid_tune, metric = "accuracy")
+bestgrid_xgboost <- select_best(grid_tune, metric = "recall")
 
 final_xg_wf <- finalize_workflow(xgboost_wf, bestgrid_xgboost)
 
 final_xg_fit <- fit(final_xg_wf, data = traindataFinal)
 ```
+```{r}
+final_xg_fit <- fit(final_xg_wf, data = train_clean)
+```
+
 
 #XG Boost Predictions - SS
 ```{r}
-xgboost_preds <- predict(final_xg_fit, new_data = testdataFinal)
+xgboost_preds <- predict(final_xg_fit, new_data = test_clean)
 
 xgboost_results <- bind_cols(testdataFinal, xgboost_preds) %>%
   rename(pred_class = .pred_class)
 
-accuracy(xgboost_results, truth = ment14d_cat, estimate = pred_class)
+recall(xgboost_results, truth = ment14d_cat, estimate = pred_class, event_level = "second")
 
 conf_mat(xgboost_results, truth = ment14d_cat, estimate = pred_class) %>%
   autoplot(type = "heatmap") +
@@ -982,3 +991,103 @@ bind_rows(precision_low, precision_high)
 ```{r}
 vip(final_xg_fit, num_features = 15)
 ```
+
+```{r}
+glm_model_reg <- logistic_reg(
+  mode = "classification",
+  penalty = tune(),
+  mixture = tune()
+) %>%
+  set_engine("glmnet")
+
+# Create workflow
+reg_wf <- workflow() %>%
+  add_model(glm_model_reg) %>%
+  add_recipe(recipe)
+
+# Space-filling grid over penalty and mixture
+glm_reg_grid <- grid_space_filling(
+  parameters(
+    penalty(range = c(0.001, 0.1)),
+    mixture(range = c(0, 1))
+  ),
+  size = 10
+)
+
+# Tune the model
+set.seed(42)
+grid_glm_tune <- tune_grid(
+  reg_wf,
+  resamples = folds,
+  grid = glm_reg_grid,
+  metrics = metric_set(accuracy, recall, kap),
+  control = control_grid(verbose = TRUE, save_pred = TRUE)
+)
+```
+
+```{r}
+# Select best model by accuracy (keep .25 threshold)
+best_glm <- select_best(grid_glm_tune, metric = "recall")
+
+# Finalize workflow
+final_glm_wf <- finalize_workflow(reg_wf, best_glm)
+final_glm_model <- fit(final_glm_wf, data = traindataFinal)
+```
+
+```{r}
+glm_reg_preds <- predict(final_glm_model, new_data = testdataFinal, type = "prob")
+
+glm_reg_results <- bind_cols(testdataFinal, glm_reg_preds)
+```
+
+```{r}
+recall_by_threshold <- map_dfr(threshold_values, function(thresh) {
+  
+  temp <- glm_reg_results %>%
+    mutate(pred_class = ifelse(.pred_High >= thresh, "High", "Low")) %>%
+    mutate(pred_class = factor(pred_class, levels = c("Low", "High")))
+  
+  data.frame(
+    threshold = thresh,
+    recall = recall(temp, truth = ment14d_cat, estimate = pred_class, event_level = "second")$.estimate,
+    precision = precision(temp, truth = ment14d_cat, estimate = pred_class, event_level = "second")$.estimate,
+    f1 = f_meas(temp, truth = ment14d_cat, estimate = pred_class, beta = 1, event_level = "second")$.estimate
+  )
+})
+```
+
+
+```{r}
+recall_by_threshold %>%
+  pivot_longer(cols = c(recall, precision, f1), names_to = "Metric", values_to = "Value") %>%
+  ggplot(aes(x = threshold, y = Value, color = Metric)) +
+  geom_line(size = 1.2) +
+  labs(
+    title = "Recall, Precision, and F1 Score Across Thresholds",
+    x = "Classification Threshold",
+    y = "Metric Value"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+best_threshold <- recall_by_threshold %>%
+  arrange(desc(f1)) %>%
+  head(1)
+
+best_threshold
+```
+
+```{r}
+glm_reg_results_final <- glm_reg_results %>%
+  mutate(pred_class_cusreg = ifelse(.pred_High >= 0.3, "High", "Low")) %>%
+  mutate(pred_class_cusreg = factor(pred_class_cusreg, levels = c("Low", "High")))
+
+conf_mat(glm_reg_results_final, truth = ment14d_cat, estimate = pred_class_cusreg)
+metrics(glm_reg_results_final, truth = ment14d_cat, estimate = pred_class_cusreg)
+```
+```{r}
+summary(glm_reg_results$.pred_High)
+hist(glm_reg_results$.pred_High, breaks = 50)
+```
+
