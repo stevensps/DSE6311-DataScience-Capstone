@@ -1,1 +1,78 @@
+######## Generalized Linear Model (GLM) ########
 
+#GLM - CR
+```{r}
+glm_model <- logistic_reg(mode = "classification") %>% # logistic regression model for classification
+  set_engine("glm")
+```
+
+```{r}
+glm_wf <- workflow() %>% # workflow with our model and recipe
+  add_model(glm_model) %>%
+  add_recipe(recipe)
+```
+
+```{r}
+glm_fit <- fit(glm_wf, data = traindataFinal) # Fit logistic regression model to training data
+```
+
+```{r}
+glm_probs <- predict(glm_fit, new_data = testdataFinal, type = "prob") # Predict probabilities for test set
+```
+
+```{r}
+glm_results_prob <- bind_cols(testdataFinal, glm_probs) # Attach predicted probabilites to test data
+
+glm_results_prob <- glm_results_prob %>%
+  mutate(pred_class_custom = if_else(.pred_High >= 0.25, "High", "Low")) %>% # Custom threshold
+  mutate(pred_class_custom = factor(pred_class_custom, levels = c("Low", "High")))
+```
+
+```{r}
+conf_mat(glm_results_prob, truth = ment14d_cat, estimate = pred_class_custom) # Confusion matrix seeing how predictions line up with actual classes
+
+metrics(glm_results_prob, truth = ment14d_cat, estimate = pred_class_custom) # Performance metrics
+
+recall(glm_results_prob, truth = ment14d_cat, estimate = pred_class_custom, event_level = "second") # recall for High class
+precision(glm_results_prob, truth = ment14d_cat, estimate = pred_class_custom, event_level = "second") # Precision for High class
+```
+
+```{r}
+set.seed(123) # Cross validation: 5 fold stratified 
+folds <- vfold_cv(train_clean, v = 5, strata = ment14d_cat) 
+
+cv_results <- fit_resamples( # Fit model across cross validation fold
+  glm_wf,
+  resamples = folds,
+  metrics = metric_set(accuracy),
+  control = control_resamples(save_pred = TRUE)
+)
+
+collect_metrics(cv_results) # Accuracy results
+```
+
+```{r}
+glm_results_prob %>% # Recall by actual class
+  group_by(ment14d_cat) %>%
+  yardstick::recall(truth = ment14d_cat, estimate = pred_class_custom, event_level = "second")
+```
+
+```{r}
+recall_low <- recall( # Manually calculate recall for each class 
+  glm_results_prob,
+  truth = ment14d_cat,
+  estimate = pred_class_custom,
+  event_level = "first"
+) %>%
+  mutate(class = "Low")
+
+recall_high <- recall(
+  glm_results_prob,
+  truth = ment14d_cat,
+  estimate = pred_class_custom,
+  event_level = "second"
+) %>%
+  mutate(class = "High")
+
+bind_rows(recall_low, recall_high) # Combine recall results
+```
