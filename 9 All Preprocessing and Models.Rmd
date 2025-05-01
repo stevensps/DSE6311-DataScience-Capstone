@@ -1,0 +1,1130 @@
+---
+title: "Preprocesing and All Models"
+author: "Steven Simonsen"
+date: "2025-05-01"
+output: pdf_document
+---
+```{r}
+library(haven)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(gtsummary)
+library(forcats)
+library(naniar)
+library(corrplot)
+library(stats)
+library(stringr)
+library(car)
+library(reshape2)
+library(viridis)
+library(GGally)
+library(knitr)
+library(kableExtra)
+library(scales)
+library(caret)
+library(mice)
+library(fastDummies)
+library(tidymodels)
+library(parallel)
+library(janitor)
+library(themis)
+library(nnet) # multinomial logistic regression
+library(ranger)      # Random Forest engine
+library(future)
+library(furrr)
+library(yardstick)
+library(xgboost)
+library(vip)
+library(future)
+```
+
+
+# Import data
+```{r}
+# Code below imports the data to any person's machine
+if (!dir.exists("C:/temp")) {
+    dir.create("C:/temp")
+} # If statement creates temp folder on machine
+
+zipUrl <- "https://www.cdc.gov/brfss/annual_data/2023/files/LLCP2023XPT.zip"
+zipPath <- path.expand("C:/temp/LLCP2023XPT.zip")
+if (!file.exists(zipPath)) {
+    download.file(zipUrl, destfile = zipPath)
+} #Download the file
+
+extractPath <- "C:/temp"
+sasFile <- file.path(extractPath, "LLCP2023.XPT") 
+if (!file.exists(sasFile)) {
+    unzip(zipPath, exdir = extractPath)
+}
+list.files(extractPath) # Extract, unzip, and make sure file exists
+
+if (file.exists(sasFile)) {
+    brfss_raw <- read_xpt(sasFile)
+    head(brfss_raw)
+} else {
+    message("File does not exist, check download or unzip process.")
+} # Read file into R after specifying file variable
+
+```
+
+# Column names
+```{r}
+names(brfss_raw)
+```
+# Rename variables
+```{r}
+brfss_subset <- brfss_raw %>%
+  select(
+    ment14d   = `_MENT14D`,
+    menthlth  = `MENTHLTH`,
+    hlthpl1   = `_HLTHPL1`,
+    persdoc3  = PERSDOC3,
+    medcost1  = MEDCOST1,
+    checkup1  = CHECKUP1,
+    primins1  = PRIMINS1,
+    addepev3  = ADDEPEV3,
+    acedeprs  = ACEDEPRS,
+    decide    = DECIDE,
+    exerany2  = EXERANY2,
+    pa150r4   = `_PA150R4`,
+    sex       = `_SEX`,
+    age80     = `_AGE80`,
+    race      = `_RACE`,
+    educa     = EDUCA,
+    employ1   = EMPLOY1,
+    marital   = MARITAL,
+    incomg1   = `_INCOMG1`,
+    numadult  = NUMADULT,
+    state     = `_STATE`
+  )
+```
+
+```{r}
+brfss_subset <- brfss_subset %>%
+  mutate(
+    ment14d = na_if(ment14d, 9)
+  )
+table(brfss_subset$ment14d, useNA = "ifany")
+```
+# Collapse ment14d and create ment14d_cat
+```{r}
+brfss_subset <- brfss_subset %>%
+  mutate(ment14d = case_when(
+    ment14d %in% c(1, 2) ~ 1,              # Low (0-13) days
+    !is.na(ment14d) ~ 2,                  # High (14+) days
+    TRUE ~ NA_real_                        
+  ))
+table(brfss_subset$ment14d, useNA = "ifany")
+
+brfss_subset <- brfss_subset %>%
+  mutate(ment14d_cat = case_when(
+    ment14d == 1 ~ "Low",                  # Low (0-13) days
+    !is.na(ment14d) ~ "High",             # High (14+) days
+    TRUE ~ NA_character_                        
+  )) %>%
+  mutate(ment14d_cat = factor(ment14d_cat, levels = c("Low", "High"))) %>%
+  select(-ment14d)
+
+table(brfss_subset$ment14d_cat, useNA = "ifany")
+```
+
+# Drop N/A and Check ment14d_cat
+```{r}
+brfss_subset <- brfss_subset %>%
+  filter(!is.na(ment14d_cat))
+
+table(brfss_subset$ment14d_cat, useNA = "ifany")
+```
+
+# Split State into Region - CR
+```{r}
+region_map <- data.frame(
+  state = c(1, 2, 4, 5, 6, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 19, 20, 
+                 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 
+                 37, 38, 39, 40, 41, 44, 45, 46, 47, 48, 49, 50, 51, 53, 54, 
+                 55, 56, 66, 72, 78), 
+  region = c("South", "West", "West", "South", "West", "West", "Northeast", 
+             "South", "South", "South", "South", "West", "West", "Midwest", 
+             "Midwest", "Midwest", "Midwest", "South", "Northeast", 
+             "South", "Northeast", "Midwest", "Midwest", "South", "Midwest", 
+             "West", "Midwest", "West", "Northeast", "Northeast", "West", 
+             "Northeast", "South", "Midwest", "Midwest", "South", "West", 
+             "Northeast", "South", "West", "South", "South", "West", 
+             "Northeast", "South", "West", "South", "Midwest", "West", 
+             "Territories", "Territories", "Territories") 
+)
+#Merge region data into main dataset based on state codes
+brfss_subset <- merge(brfss_subset, region_map, by.x = "state", by.y = "state", all.x = TRUE)
+brfss_subset$region <- as.factor(brfss_subset$region) #Convert region to factor
+```
+
+#############Data Preprocessing#############
+
+# Initial Data Split - CR and SS
+```{r}
+getwd()
+source("calcSplitRatio-3.R")
+split_ratio <- calcSplitRatio(df = brfss_subset)
+
+set.seed(42)
+trainIndex <- createDataPartition(brfss_subset$ment14d_cat, p=split_ratio, list=FALSE)
+
+train_df <- brfss_subset[trainIndex, ]
+test_df <- brfss_subset[-trainIndex, ]
+```
+
+# Recode Train
+```{r}
+train_df <- train_df %>%
+  mutate(
+    hlthpl1 = na_if(as.numeric(as.character(hlthpl1)), 9),
+    
+    persdoc3 = na_if(as.numeric(as.character(persdoc3)), 7),
+    persdoc3 = na_if(persdoc3, 9),
+    
+    medcost1 = na_if(as.numeric(as.character(medcost1)), 7),
+    medcost1 = na_if(medcost1, 9),
+    
+    checkup1 = na_if(as.numeric(as.character(checkup1)), 7),
+    checkup1 = na_if(checkup1, 9),
+    
+    primins1 = na_if(as.numeric(as.character(primins1)), 77),
+    primins1 = na_if(primins1, 99),
+    
+    exerany2 = na_if(as.numeric(as.character(exerany2)), 7),
+    exerany2 = na_if(exerany2, 9),
+    
+    pa150r4 = na_if(as.numeric(as.character(pa150r4)), 9)
+  )
+
+```
+
+```{r}
+ train_df <-  train_df %>%
+  mutate(
+    educa     = na_if(as.numeric(as.character(educa)), 9),
+    
+    employ1   = na_if(as.numeric(as.character(employ1)), 9),
+    
+    marital   = na_if(as.numeric(as.character(marital)), 9),
+    
+    incomg1   = na_if(as.numeric(as.character(incomg1)), 9),
+  )
+
+```
+
+```{r}
+ train_df <-  train_df %>%
+  mutate(
+    menthlth = ifelse(menthlth == 88, 0, menthlth),
+    menthlth = na_if(menthlth, 77),
+    menthlth = na_if(menthlth, 99))
+table(train_df$menthlth)
+```
+
+#Check ment14d_cat
+```{r}
+table(train_df$ment14d_cat, useNA = "ifany")
+```
+
+```{r}
+train_df <- train_df %>% 
+  mutate(
+    race = na_if(as.numeric(as.character(race)), 9)
+  )
+table(train_df$race, useNA = "ifany")
+```
+
+# Recode Test
+```{r}
+test_df <- test_df %>%
+  mutate(
+    hlthpl1   = na_if(as.numeric(as.character(hlthpl1)), 9),
+
+    persdoc3  = na_if(as.numeric(as.character(persdoc3)), 7),
+    persdoc3  = na_if(persdoc3, 9),
+
+    medcost1  = na_if(as.numeric(as.character(medcost1)), 7),
+    medcost1  = na_if(medcost1, 9),
+
+    checkup1  = na_if(as.numeric(as.character(checkup1)), 7),
+    checkup1  = na_if(checkup1, 9),
+
+    primins1  = na_if(as.numeric(as.character(primins1)), 77),
+    primins1  = na_if(primins1, 99),
+
+    exerany2  = na_if(as.numeric(as.character(exerany2)), 7),
+    exerany2  = na_if(exerany2, 9),
+
+    pa150r4   = na_if(as.numeric(as.character(pa150r4)), 9)
+  )
+```
+
+```{r}
+test_df <-  test_df %>%
+  mutate(
+    educa     = na_if(as.numeric(as.character(educa)), 9),
+    
+    employ1   = na_if(as.numeric(as.character(employ1)), 9),
+    
+    marital   = na_if(as.numeric(as.character(marital)), 9),
+    
+    incomg1   = na_if(as.numeric(as.character(incomg1)), 9),
+  )
+```
+
+```{r}
+test_df <-  test_df %>%
+  mutate(
+    menthlth = ifelse(menthlth == 88, 0, menthlth),
+    menthlth = na_if(menthlth, 77),
+    menthlth = na_if(menthlth, 99))
+table(test_df$menthlth)
+```
+
+# Check ment14d_cat
+```{r}
+table(test_df$ment14d_cat, useNA = "ifany")
+```
+
+```{r}
+test_df <- test_df %>% 
+  mutate(
+    race = na_if(as.numeric(as.character(race)), 9)
+  )
+table(test_df$race, useNA = "ifany")
+```
+############################ encoding categorical values ############################
+
+# Training Set Encoding Categorical Values
+```{r}
+# Clean variable names BK
+train_df <- train_df %>% clean_names()
+
+## binary variables (0=no, 1=yes)
+train_df <- train_df %>%
+  mutate(
+    hlthpl1 = ifelse(hlthpl1 == 1, 1, 0),      # Health plan coverage
+    persdoc3 = ifelse(persdoc3 == 1, 1, 0),    # Personal doctor
+    medcost1 = ifelse(medcost1 == 1, 1, 0),    # Could not see doctor due to cost
+    exerany2 = ifelse(exerany2 == 1, 1, 0),    # Physical activity
+    addepev3 = ifelse(addepev3 == 1, 1, 0),    # Ever told you had depressive disorder
+    acedeprs = ifelse(acedeprs == 1, 1, 0),    # ACE: depression exposure
+    decide = ifelse(decide == 1, 1, 0),        # Decision-making difficulty (cognitive decline)
+    pa150r4 = ifelse(pa150r4 == 1, 1, 0)       # Met physical activity guidelines
+  )
+
+## ordinal variables (ordered factor)
+train_df <- train_df %>%
+  mutate(
+    educa = factor(educa, levels = c(1:6), ordered = TRUE),            # Education level
+    incomg1 = factor(incomg1, levels = 1:8, ordered = TRUE),           # Income group
+    checkup1 = factor(checkup1, levels = c(4,3,2,1), ordered = TRUE),  # Last checkup (4 = Never → 1 = <1 year)
+    marital = factor(marital, levels = c(5,6,3,4,1,2), ordered = TRUE),# Marital status, loosely ordered
+    age80 = as.numeric(age80)                                          # Continuous, but sometimes treated as ordinal
+  )
+
+## nominal variables (unordered categories as factors)
+train_df <- train_df %>%
+  mutate(
+    sex = factor(sex),               # Sex: 1 = Male, 2 = Female
+    race = factor(race),             # Race/Ethnicity categories
+    employ1 = factor(employ1),       # Employment status
+    primins1 = factor(primins1),     # Primary insurance type
+    numadult = as.numeric(numadult)  # # of adults in household (can leave as numeric)
+  )
+
+## check how values are coded
+table(train_df$hlthpl1, useNA = "ifany")
+```
+################################ one-hot encoding train #######################################
+
+```{r}
+
+# Ensure categorical variables are factors BK
+train_df <- train_df %>%
+  mutate(
+    hlthpl1 = factor(hlthpl1),
+    persdoc3 = factor(persdoc3),
+    medcost1 = factor(medcost1),
+    checkup1 = factor(checkup1),
+    primins1 = factor(primins1),
+    addepev3 = factor(addepev3),
+    acedeprs = factor(acedeprs),
+    decide = factor(decide),
+    exerany2 = factor(exerany2),
+    pa150r4 = factor(pa150r4),
+    sex = factor(sex),
+    race = factor(race),
+    educa = factor(educa),
+    employ1 = factor(employ1),
+    marital = factor(marital),
+    incomg1 = factor(incomg1)
+  )
+
+# One-hot encode all factor variables
+# Separate response variable
+response_var <- train_df$ment14d_cat
+
+# Remove it temporarily from dataset to avoid encoding
+brfss_train_no_response <- train_df %>% select(-ment14d_cat)
+
+# Encode predictors only
+brfss_train_encoded <- fastDummies::dummy_cols(
+  brfss_train_no_response,
+  remove_first_dummy = TRUE,
+  remove_selected_columns = TRUE
+)
+
+# Add response variable back
+brfss_train_encoded$ment14d_cat <- response_var 
+```
+
+# Test Set Encoding
+```{r}
+# Clean variable names BK
+test_df <- test_df %>% clean_names()
+
+## binary variables (0=no, 1=yes)
+test_df <- test_df %>%
+  mutate(
+    hlthpl1 = ifelse(hlthpl1 == 1, 1, 0),      # Health plan coverage
+    persdoc3 = ifelse(persdoc3 == 1, 1, 0),    # Personal doctor
+    medcost1 = ifelse(medcost1 == 1, 1, 0),    # Could not see doctor due to cost
+    exerany2 = ifelse(exerany2 == 1, 1, 0),    # Physical activity
+    addepev3 = ifelse(addepev3 == 1, 1, 0),    # Ever told you had depressive disorder
+    acedeprs = ifelse(acedeprs == 1, 1, 0),    # ACE: depression exposure
+    decide = ifelse(decide == 1, 1, 0),        # Decision-making difficulty (cognitive decline)
+    pa150r4 = ifelse(pa150r4 == 1, 1, 0)       # Met physical activity guidelines
+  )
+
+## ordinal variables (ordered factor)
+test_df <- test_df %>%
+  mutate(
+    educa = factor(educa, levels = c(1:6), ordered = TRUE),            # Education level
+    incomg1 = factor(incomg1, levels = 1:8, ordered = TRUE),           # Income group
+    checkup1 = factor(checkup1, levels = c(4,3,2,1), ordered = TRUE),  # Last checkup (4 = Never → 1 = <1 year)
+    marital = factor(marital, levels = c(5,6,3,4,1,2), ordered = TRUE),# Marital status, loosely ordered
+    age80 = as.numeric(age80)                                          # Continuous, but sometimes treated as ordinal
+  )
+
+## nominal variables (unordered categories as factors)
+test_df <- test_df %>%
+  mutate(
+    sex = factor(sex),               # Sex: 1 = Male, 2 = Female
+    race = factor(race),             # Race/Ethnicity categories
+    employ1 = factor(employ1),       # Employment status
+    primins1 = factor(primins1),     # Primary insurance type
+    numadult = as.numeric(numadult)  # # of adults in household (can leave as numeric)
+  )
+
+## check how values are coded
+table(test_df$hlthpl1, useNA = "ifany")
+```
+################################ one-hot encoding test #######################################
+
+```{r}
+# Ensure categorical variables are factors BK
+test_df <- test_df %>%
+  mutate(
+    hlthpl1 = factor(hlthpl1),
+    persdoc3 = factor(persdoc3),
+    medcost1 = factor(medcost1),
+    checkup1 = factor(checkup1),
+    primins1 = factor(primins1),
+    addepev3 = factor(addepev3),
+    acedeprs = factor(acedeprs),
+    decide = factor(decide),
+    exerany2 = factor(exerany2),
+    pa150r4 = factor(pa150r4),
+    sex = factor(sex),
+    race = factor(race),
+    educa = factor(educa),
+    employ1 = factor(employ1),
+    marital = factor(marital),
+    incomg1 = factor(incomg1)
+  )
+
+# One-hot encode all factor variables
+# Separate response variable
+response_var_test <- test_df$ment14d_cat
+
+# Remove it temporarily from dataset to avoid encoding
+brfss_test_no_response <- test_df %>% select(-ment14d_cat)
+
+# Encode predictors only
+brfss_test_encoded <- fastDummies::dummy_cols(
+  brfss_test_no_response,
+  remove_first_dummy = TRUE,
+  remove_selected_columns = TRUE
+)
+
+# Add response variable back
+brfss_test_encoded$ment14d_cat <- response_var_test
+
+missing_cols <- setdiff(colnames(brfss_train_encoded), colnames(brfss_test_encoded))
+print(missing_cols)
+
+for (col in missing_cols) {
+  brfss_test_encoded[[col]] <- 0
+}
+
+brfss_test_encoded <- brfss_test_encoded[, colnames(brfss_train_encoded)]
+```
+
+# Encode Train Variables - BK
+#```{r}
+#encodeTrain <- dummy_cols(train_df, #Select multilevel Nominal predictors for encoding
+#                       select_columns = c("race", "primins1", "employ1",
+#                                          "marital", "incomg1", "state"),
+#                       remove_first_dummy = TRUE, #Avoids dummy variable trap
+#                       remove_selected_columns = TRUE) #Removes original, un-encoded columns
+#```
+# Encode Test Variables - BK
+#```{r}
+#encodeTest <- dummy_cols(test_df, 
+#                       select_columns = c("race", "primins1", "employ1",
+#                                          "marital", "incomg1", "state"),
+#                       remove_first_dummy = TRUE, 
+#                       remove_selected_columns = TRUE)
+#```
+
+
+# Impute Missing Values - CR and SS
+```{r}
+#Impute Train
+predMatrix <- quickpred(brfss_train_encoded, mincor = 0.2) #Create Prediction matrix to only use variables for comparison with correlation greater than 0.2
+
+set.seed(123)
+plan(multisession) #Enable multisession parallel processing in R
+
+set.seed(123)
+imputedTrain <- futuremice(brfss_train_encoded, #parlmice to introduce parallel processing
+                         m = 1, 
+                         method = "pmm", #PMM made sense given encoding. Fits regression model, and then estimates predicted values using random sampling from matched values.
+                         maxit = 8,
+                         predictorMatrix = predMatrix)
+plot(imputedTrain)
+trainimputeFinal <- complete(imputedTrain)
+trainimputeFinal$ment14d_cat <- train_df$ment14d_cat
+
+logged_warnings <- imputedTrain$loggedEvents
+problematic_vars <- unique(logged_warnings$dep)
+problematic_vars <- problematic_vars[problematic_vars %in% colnames(brfss_train_encoded)]
+missing_vars <- problematic_vars[!problematic_vars %in% colnames(brfss_train_encoded)]
+missing_vars
+
+# Check numeric
+problematic_numeric_vars <- problematic_vars[sapply(brfss_train_encoded[problematic_vars], is.numeric)]
+
+# Check nominal (categorical)
+problematic_nominal_vars <- problematic_vars[sapply(brfss_train_encoded[problematic_vars], function(x) is.factor(x) || is.character(x))]
+
+#Impute Test
+set.seed(123)
+imputedTest <- futuremice(brfss_test_encoded, 
+                         m = 1, 
+                         method = "pmm", 
+                         maxit = 8,
+                         predictorMatrix = predMatrix)
+plot(imputedTest)
+testimputeFinal <- complete(imputedTest)
+testimputeFinal$ment14d_cat <- test_df$ment14d_cat
+```
+# Fix primins1_88 NA values- SS
+```{r}
+# Train
+trainimputeFinal <- trainimputeFinal %>%
+  mutate(primins1_88 = if_else(is.na(primins1_88), mean(primins1_88, na.rm = TRUE), primins1_88))
+
+#Test
+testimputeFinal <- testimputeFinal %>%
+  mutate(primins1_88 = if_else(is.na(primins1_88), mean(primins1_88, na.rm = TRUE), primins1_88))
+```
+##########################################################################New Code for Initial Modeling############################################################################################################
+
+```{r}
+# Convert all interger columns to numeric
+train_clean <- trainimputeFinal %>%
+  mutate(across(where(is.integer), as.numeric))
+
+test_clean <- testimputeFinal %>%
+  mutate(across(where(is.integer), as.numeric))
+```
+
+
+# Tidymodels Recipe for Scaling/Centering - SS
+```{r}
+recipe <- recipe(ment14d_cat ~ ., data = train_clean) %>%
+  update_role(menthlth, state, new_role = "id") %>%
+  step_impute_mean(all_of(problematic_numeric_vars)) %>%
+  step_impute_mode(all_of(problematic_nominal_vars)) %>%
+  # step_impute_mean(all_numeric_predictors()) %>% # used for xgboost scale_pos_weight
+  # step_impute_mode(all_nominal_predictors()) %>% # used for xgboost scale_pos_weight
+  step_upsample(ment14d_cat) %>%
+  #step_dummy(all_nominal_predictors(), one_hot = TRUE) %>%
+  step_zv(all_predictors()) %>%
+  step_center(all_numeric_predictors()) %>%
+  step_scale(all_numeric_predictors())
+
+#Do not use steps below in models, as these are not necessary given our workflow is already applying the necessary recipe steps to apply to train_clean and test_clean
+
+preparedRecipe <- prep(recipe, training = train_clean)
+
+traindataFinal <- bake(preparedRecipe, new_data = NULL)
+testdataFinal <- bake(preparedRecipe, new_data = test_clean)
+
+dim(traindataFinal)
+dim(testdataFinal)
+head(traindataFinal)
+
+# Identify columns with remaining NAs
+columns_with_na <- colnames(traindataFinal)[colSums(is.na(traindataFinal)) > 0]
+
+# View all rows with NAs for those columns
+rows_with_na <- traindataFinal %>%
+  filter(if_any(all_of(columns_with_na), is.na))
+
+# Display the columns with NA and the affected rows
+columns_with_na
+rows_with_na
+```
+
+```{r}
+table(traindataFinal$ment14d_cat)
+```
+
+```{r}
+sum(is.na(traindataFinal$primins1_88))
+```
+```{r}
+levels(traindataFinal$ment14d_cat)
+```
+
+```{r}
+set.seed(123) # Set up 5-fold cross-validation with stratified sampling on outcome
+folds <- vfold_cv(train_clean, v = 5, strata = ment14d_cat) 
+```
+
+
+## Principle Component Analysis (PCA) on Scaled Data - CR
+```{r}
+pca_input_data <- traindataFinal %>%
+  filter(if_all(everything(), ~ !is.na(.) & is.finite(.))) # Filter out rows with any NA or infinite values
+
+pca_input <- pca_input_data %>% 
+  select(where(is.numeric)) %>% # Keep only numeric columns for PCA
+  scale() # Standardize numeric features
+
+pca_result <- prcomp(pca_input, center = TRUE, scale. = TRUE) #PCA with centering and scaling
+
+plot(pca_result, type = "l", main = "Scree Plot") #Visualize variance by each principle component
+summary(pca_result) #Output cumulative variance to decide how many components to retain
+```
+
+```{r}
+pca_scores <- as.data.frame(pca_result$x) # Get PCA scores
+pca_scores$ment14d_cat <- pca_input_data$ment14d_cat # Add original outcome category to PCA scores
+```
+
+```{r}
+ggplot(pca_scores, aes(x = PC1, y = PC2, color = ment14d_cat)) +
+  geom_point(alpha = 0.5) +
+  labs(title = "PCA: PC1 vs PC2 colored by ment14d_cat") +
+  theme_minimal()
+```
+
+```{r}
+set.seed(123)
+kmeans_result <- kmeans(pca_scores[, 1:2], centers = 3)  # Using PC1 & PC2 # Run k-means clustering with k = 3 on PC1 & PC2
+
+pca_scores$cluster <- as.factor(kmeans_result$cluster) # Assign labels
+```
+
+```{r}
+ggplot(pca_scores, aes(x = PC1, y = PC2, color = cluster)) +
+  geom_point(alpha = 0.5) +
+  labs(title = "K-means Clusters (k=3) on PCA Components") +
+  theme_minimal()
+```
+
+```{r}
+table(Actual = pca_scores$ment14d_cat, Cluster = pca_scores$cluster) # Compare clusters to original categories
+```
+
+##### Modeling #####
+
+#GLM - CR
+```{r}
+glm_model <- logistic_reg(mode = "classification") %>% # logistic regression model for classification
+  set_engine("glm")
+```
+
+```{r}
+glm_wf <- workflow() %>% # workflow with our model and recipe
+  add_model(glm_model) %>%
+  add_recipe(recipe)
+```
+
+```{r}
+glm_fit <- fit(glm_wf, data = traindataFinal) # Fit logistic regression model to training data
+```
+
+```{r}
+glm_probs <- predict(glm_fit, new_data = testdataFinal, type = "prob") # Predict probabilities for test set
+```
+
+```{r}
+glm_results_prob <- bind_cols(testdataFinal, glm_probs) # Attach predicted probabilites to test data
+
+glm_results_prob <- glm_results_prob %>%
+  mutate(pred_class_custom = if_else(.pred_High >= 0.25, "High", "Low")) %>% # Custom threshold
+  mutate(pred_class_custom = factor(pred_class_custom, levels = c("Low", "High")))
+```
+
+```{r}
+conf_mat(glm_results_prob, truth = ment14d_cat, estimate = pred_class_custom) # Confusion matrix seeing how predictions line up with actual classes
+
+metrics(glm_results_prob, truth = ment14d_cat, estimate = pred_class_custom) # Performance metrics
+
+recall(glm_results_prob, truth = ment14d_cat, estimate = pred_class_custom, event_level = "second") # recall for High class
+precision(glm_results_prob, truth = ment14d_cat, estimate = pred_class_custom, event_level = "second") # Precision for High class
+```
+
+```{r}
+cv_results <- fit_resamples( # Fit model across cross validation fold
+  glm_wf,
+  resamples = folds,
+  metrics = metric_set(accuracy),
+  control = control_resamples(save_pred = TRUE)
+)
+
+collect_metrics(cv_results) # Accuracy results
+```
+
+```{r}
+glm_results_prob %>% # Recall by actual class
+  group_by(ment14d_cat) %>%
+  yardstick::recall(truth = ment14d_cat, estimate = pred_class_custom, event_level = "second")
+```
+
+```{r}
+recall_low <- recall( # Manually calculate recall for each class 
+  glm_results_prob,
+  truth = ment14d_cat,
+  estimate = pred_class_custom,
+  event_level = "first"
+) %>%
+  mutate(class = "Low")
+
+recall_high <- recall(
+  glm_results_prob,
+  truth = ment14d_cat,
+  estimate = pred_class_custom,
+  event_level = "second"
+) %>%
+  mutate(class = "High")
+
+bind_rows(recall_low, recall_high) # Combine recall results
+```
+
+#Random Forest - CR
+```{r}
+library(future)
+plan(sequential)
+```
+
+
+```{r}
+freqs <- table(train_clean$ment14d_cat) # Calculate class weights based on imbalance
+weights <- round(max(freqs) / freqs, 2)
+weights
+```
+
+
+```{r}
+rf_model <- rand_forest(
+  mode = "classification",
+  mtry = tune(),
+  trees = tune(),
+  min_n = tune()
+) %>%
+  set_engine(
+    "ranger",
+    importance = "impurity",
+    splitrule = "extratrees",
+    class.weights = c(Low = 1.00, High = 6.32)
+  )
+```
+
+```{r}
+rf_wf <- workflow() %>% # Create workflow with preprocessing recipe and Random Forest model
+  add_model(rf_model) %>%
+  add_recipe(recipe)
+```
+
+```{r}
+set.seed(123) # Set up 5-fold cross-validation with stratified sampling on outcome
+folds <- vfold_cv(train_clean, v = 5, strata = ment14d_cat) 
+```
+
+```{r}
+exists("max_depth", where = "package:dials")
+```
+
+
+```{r}
+rf_grid <- grid_random(
+  trees(range = c(100, 500)),
+  mtry(range = c(3, 15)),
+  min_n(range = c(1, 10)),
+  size = 3
+)
+```
+
+
+```{r}
+start_time <- Sys.time()
+
+rf_results <- tune_grid(
+  rf_wf,
+  resamples = folds,
+  grid = rf_grid,
+  metrics = metric_set(pr_auc, accuracy, recall, precision, f_meas, kap),
+  control = control_grid(verbose = TRUE, allow_par = TRUE)
+)
+
+end_time <- Sys.time()
+
+end_time - start_time
+
+print(end_time - start_time)
+
+autoplot(rf_results) +
+  ggtitle("Random Forest Tuning Results") +
+  theme_minimal()
+```
+
+
+
+```{r}
+show_best(rf_results, metric = "recall", n = 5)
+
+best_rf <- select_best(rf_results, metric = "recall")
+print(best_rf)
+```
+
+```{r}
+final_rf_wf <- finalize_workflow(
+  rf_wf,
+  best_rf
+)
+
+final_rf_fit <- fit(final_rf_wf, data = train_clean) # Fit the finalized model
+```
+
+
+```{r}
+set.seed(42)
+rf_preds <- predict(final_rf_fit, new_data = test_clean) # Predict classes on test set using finalized Random Forest model
+
+rf_probs <- predict(final_rf_fit, new_data = test_clean, type = "prob") # Predict probabilities
+```
+
+```{r}
+rf_results_prob <- bind_cols(testdataFinal, rf_probs) %>% # Combine predictions with test data
+  mutate(pred_class_custom = if_else(.pred_High >= 0.25, "High", "Low")) %>% # Classify High if probability is greater than or equal to .25
+  mutate(pred_class_custom = factor(pred_class_custom, levels = c("Low", "High")))
+```
+
+
+```{r}
+metrics(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom) # Evaluate performance
+
+recall(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom, event_level = "second")
+precision(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom, event_level = "second")
+
+conf_mat(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom) %>% # Visualize the confusion matrix as a heatmap
+  autoplot(type = "heatmap") +
+  ggtitle("Random Forest Confusion Matrix (Threshold = 0.25)") +
+  theme_minimal()
+```
+
+```{r}
+# Recall Low and High
+recall_low_rf <- recall(
+  rf_results_prob,
+  truth = ment14d_cat,
+  estimate = pred_class_custom,
+  event_level = "first"
+) %>%
+  mutate(class = "Low")
+
+recall_high_rf <- recall(
+  rf_results_prob,
+  truth = ment14d_cat,
+  estimate = pred_class_custom,
+  event_level = "second"
+) %>%
+  mutate(class = "High")
+
+bind_rows(recall_low_rf, recall_high_rf) # Combine recall results
+```
+
+
+```{r}
+final_rf_fit %>% # Show variable importance: Top 15
+  extract_fit_parsnip() %>% 
+  vip::vip(num_features = 15)
+```
+
+```{r}
+metrics(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom) %>%
+  bind_rows(
+    recall(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom, event_level = "second") %>% mutate(.metric = "recall_high"),
+    precision(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom, event_level = "second") %>% mutate(.metric = "precision_high")
+  )
+```
+
+# XGBoost - SS
+```{r}
+parallel::detectCores() # How many CPU cores are available
+
+
+plan(sequential) # Parallel plan to sequential
+foreach::registerDoSEQ() # Register sequential backend for each lopp
+
+xgboost_model <- boost_tree(
+  mode = "classification",
+  trees = tune(),
+  tree_depth = tune(),
+  learn_rate = tune(),
+  loss_reduction = tune(),
+  sample_size = tune(),
+  min_n = tune()
+) %>%
+  set_engine("xgboost", scale_pos_weight = tune())
+
+xgboost_wf <- workflow() %>%
+  add_model(xgboost_model) %>%
+  add_recipe(recipe)
+
+xgboost_grid <- grid_space_filling(
+  trees(range = c(100, 300)),
+  tree_depth(range = c(3, 10)),
+  learn_rate(range = c(0.01, 0.3)),
+  loss_reduction(range = c(0, 5)),
+  sample_size = sample_prop(range = c(0.5, 1)),
+  min_n(range = c(1, 10)),
+  scale_pos_weight(range = c(1, 10)),
+  size = 6
+)
+
+set.seed(42)
+
+grid_tune <- tune_grid(
+  xgboost_wf,
+  resamples = folds,
+  grid = xgboost_grid,
+  metrics = metric_set(accuracy, kap, recall),
+  control = control_grid(verbose = TRUE, save_pred = TRUE)
+)
+
+bestgrid_xgboost <- select_best(grid_tune, metric = "recall")
+
+final_xg_wf <- finalize_workflow(xgboost_wf, bestgrid_xgboost)
+
+#final_xg_fit <- fit(final_xg_wf, data = traindataFinal)
+```
+```{r}
+final_xg_fit <- fit(final_xg_wf, data = train_clean)
+```
+
+
+#XG Boost Predictions - SS
+```{r}
+set.seed(42)
+xgboost_preds <- predict(final_xg_fit, new_data = test_clean)
+
+xgboost_results <- bind_cols(testdataFinal, xgboost_preds) %>%
+  rename(pred_class = .pred_class)
+
+recall(xgboost_results, truth = ment14d_cat, estimate = pred_class, event_level = "second")
+
+conf_mat(xgboost_results, truth = ment14d_cat, estimate = pred_class) %>%
+  autoplot(type = "heatmap") +
+  ggtitle("XGBoost Confusion Matrix (Default Threshold)") +
+  theme_minimal()
+```
+
+```{r}
+set.seed(42)
+xgboost_probs <- predict(final_xg_fit, new_data = testdataFinal, type = "prob") # Predict probabilities; apply 0.25 threshold
+
+xgboost_results_prob <- bind_cols(testdataFinal, xgboost_probs) %>%
+  mutate(pred_class_custom = if_else(.pred_High >= 0.25, "High", "Low")) %>%
+  mutate(pred_class_custom = factor(pred_class_custom, levels = c("Low", "High")))
+```
+
+```{r}
+metrics(xgboost_results_prob, truth = ment14d_cat, estimate = pred_class_custom) # Metrics using 0.25 threshold
+
+conf_mat(xgboost_results_prob, truth = ment14d_cat, estimate = pred_class_custom) %>% # Confusion matrix using 0.25 threshold
+  autoplot(type = "heatmap") +
+  ggtitle("XGBoost Confusion Matrix (Threshold = 0.25)") +
+  theme_minimal()
+```
+
+```{r}
+# Recall Low and High
+recall_low <- recall(
+  xgboost_results_prob,
+  truth = ment14d_cat,
+  estimate = pred_class_custom,
+  event_level = "first"
+) %>%
+  mutate(class = "Low")
+
+recall_high <- recall(
+  xgboost_results_prob,
+  truth = ment14d_cat,
+  estimate = pred_class_custom,
+  event_level = "second"
+) %>%
+  mutate(class = "High")
+
+bind_rows(recall_low, recall_high)
+```
+
+```{r}
+# Precision for High and Low
+precision_low <- precision(
+  xgboost_results_prob,
+  truth = ment14d_cat,
+  estimate = pred_class_custom,
+  event_level = "first"
+) %>%
+  mutate(class = "Low")
+
+precision_high <- precision(
+  xgboost_results_prob,
+  truth = ment14d_cat,
+  estimate = pred_class_custom,
+  event_level = "second"
+) %>%
+  mutate(class = "High")
+
+bind_rows(precision_low, precision_high)
+```
+
+```{r}
+vip(final_xg_fit, num_features = 15)
+```
+
+```{r}
+parallel::detectCores() # How many CPU cores are available
+
+
+plan(sequential) # Parallel plan to sequential
+foreach::registerDoSEQ() # Register sequential backend for each lopp
+
+glm_model_reg <- logistic_reg(
+  mode = "classification",
+  penalty = tune(),
+  mixture = tune()
+) %>%
+  set_engine("glmnet")
+
+# Create workflow
+reg_wf <- workflow() %>%
+  add_model(glm_model_reg) %>%
+  add_recipe(recipe)
+
+# Space-filling grid over penalty and mixture
+glm_reg_grid <- grid_space_filling(
+  parameters(
+    penalty(range = c(0.001, 0.1)),
+    mixture(range = c(0, 1))
+  ),
+  size = 10
+)
+
+# Tune the model
+set.seed(42)
+grid_glm_tune <- tune_grid(
+  reg_wf,
+  resamples = folds,
+  grid = glm_reg_grid,
+  metrics = metric_set(accuracy, recall, kap),
+  control = control_grid(verbose = TRUE, save_pred = TRUE)
+)
+```
+
+```{r}
+# Select best model by accuracy (keep .25 threshold)
+best_glm <- select_best(grid_glm_tune, metric = "recall")
+
+# Finalize workflow
+final_glm_wf <- finalize_workflow(reg_wf, best_glm)
+final_glm_model <- fit(final_glm_wf, data = train_clean)
+```
+
+```{r}
+glm_reg_preds <- predict(final_glm_model, new_data = test_clean, type = "prob")
+
+glm_reg_results <- bind_cols(testdataFinal, glm_reg_preds)
+```
+
+```{r}
+threshold_values <- seq(0,1, by = 0.05)
+recall_by_threshold <- map_dfr(threshold_values, function(thresh) {
+  
+  temp <- glm_reg_results %>%
+    mutate(pred_class = ifelse(.pred_High >= thresh, "High", "Low")) %>%
+    mutate(pred_class = factor(pred_class, levels = c("Low", "High")))
+  
+  data.frame(
+    threshold = thresh,
+    recall = recall(temp, truth = ment14d_cat, estimate = pred_class, event_level = "second")$.estimate,
+    precision = precision(temp, truth = ment14d_cat, estimate = pred_class, event_level = "second")$.estimate,
+    f1 = f_meas(temp, truth = ment14d_cat, estimate = pred_class, beta = 1, event_level = "second")$.estimate
+  )
+})
+```
+
+
+```{r}
+recall_by_threshold %>%
+  pivot_longer(cols = c(recall, precision, f1), names_to = "Metric", values_to = "Value") %>%
+  ggplot(aes(x = threshold, y = Value, color = Metric)) +
+  geom_line(size = 1.2) +
+  labs(
+    title = "Recall, Precision, and F1 Score Across Thresholds",
+    x = "Classification Threshold",
+    y = "Metric Value"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+best_threshold <- recall_by_threshold %>%
+  arrange(desc(f1)) %>%
+  head(1)
+
+best_threshold
+```
+
+```{r}
+glm_reg_results_final <- glm_reg_results %>%
+  mutate(pred_class_cusreg = ifelse(.pred_High >= 0.3, "High", "Low")) %>%
+  mutate(pred_class_cusreg = factor(pred_class_cusreg, levels = c("Low", "High")))
+
+conf_mat(glm_reg_results_final, truth = ment14d_cat, estimate = pred_class_cusreg)
+metrics(glm_reg_results_final, truth = ment14d_cat, estimate = pred_class_cusreg)
+```
+```{r}
+summary(glm_reg_results$.pred_High)
+hist(glm_reg_results$.pred_High, breaks = 50)
+```
