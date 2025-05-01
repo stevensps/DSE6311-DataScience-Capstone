@@ -1,0 +1,52 @@
+---
+title: "PCA and Knn"
+author: "Steven Simonsen"
+date: "2025-05-01"
+output: pdf_document
+---
+#NOTE: YOU MUST RUN 4 DATA PRE-PROCESSING.RMD PRIOR TO RUNNING THIS CODE
+
+## Principle Component Analysis (PCA) on Scaled Data - CR
+```{r}
+pca_input_data <- traindataFinal %>%
+  filter(if_all(everything(), ~ !is.na(.) & is.finite(.))) # Filter out rows with any NA or infinite values
+
+pca_input <- pca_input_data %>% 
+  select(where(is.numeric)) %>% # Keep only numeric columns for PCA
+  scale() # Standardize numeric features
+
+pca_result <- prcomp(pca_input, center = TRUE, scale. = TRUE) #PCA with centering and scaling
+
+plot(pca_result, type = "l", main = "Scree Plot") #Visualize variance by each principle component
+summary(pca_result) #Output cumulative variance to decide how many components to retain
+```
+
+```{r}
+pca_scores <- as.data.frame(pca_result$x) # Get PCA scores
+pca_scores$ment14d_cat <- pca_input_data$ment14d_cat # Add original outcome category to PCA scores
+```
+
+```{r}
+ggplot(pca_scores, aes(x = PC1, y = PC2, color = ment14d_cat)) +
+  geom_point(alpha = 0.5) +
+  labs(title = "PCA: PC1 vs PC2 colored by ment14d_cat") +
+  theme_minimal()
+```
+
+```{r}
+set.seed(123)
+kmeans_result <- kmeans(pca_scores[, 1:2], centers = 3)  # Using PC1 & PC2 # Run k-means clustering with k = 3 on PC1 & PC2
+
+pca_scores$cluster <- as.factor(kmeans_result$cluster) # Assign labels
+```
+
+```{r}
+ggplot(pca_scores, aes(x = PC1, y = PC2, color = cluster)) +
+  geom_point(alpha = 0.5) +
+  labs(title = "K-means Clusters (k=3) on PCA Components") +
+  theme_minimal()
+```
+
+```{r}
+table(Actual = pca_scores$ment14d_cat, Cluster = pca_scores$cluster) # Compare clusters to original categories
+```
