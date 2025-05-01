@@ -1,0 +1,151 @@
+---
+title: "Binary Logistic Regression"
+author: "Steven Simonsen"
+date: "2025-05-01"
+output: pdf_document
+---
+#NOTE: YOU MUST RUN 4 DATA PRE-PROCESSING.RMD PRIOR TO RUNNING THIS CODE
+
+#GLM - CR
+```{r}
+glm_model <- logistic_reg(mode = "classification") %>% # logistic regression model for classification
+  set_engine("glm")
+```
+
+```{r}
+glm_wf <- workflow() %>% # workflow with our model and recipe
+  add_model(glm_model) %>%
+  add_recipe(recipe)
+```
+
+```{r}
+glm_fit <- fit(glm_wf, data = traindataFinal) # Fit logistic regression model to training data
+```
+
+```{r}
+glm_probs <- predict(glm_fit, new_data = testdataFinal, type = "prob") # Predict probabilities for test set
+```
+
+```{r}
+glm_results_prob <- bind_cols(testdataFinal, glm_probs) # Attach predicted probabilites to test data
+
+glm_results_prob <- glm_results_prob %>%
+  mutate(pred_class_custom = if_else(.pred_High >= 0.25, "High", "Low")) %>% # Custom threshold
+  mutate(pred_class_custom = factor(pred_class_custom, levels = c("Low", "High")))
+```
+
+```{r}
+conf_mat(glm_results_prob, truth = ment14d_cat, estimate = pred_class_custom) # Confusion matrix seeing how predictions line up with actual classes
+
+metrics(glm_results_prob, truth = ment14d_cat, estimate = pred_class_custom) # Performance metrics
+
+recall(glm_results_prob, truth = ment14d_cat, estimate = pred_class_custom, event_level = "second") # recall for High class
+precision(glm_results_prob, truth = ment14d_cat, estimate = pred_class_custom, event_level = "second") # Precision for High class
+```
+
+# Run with hyperparameter tuning (Elastic Net)
+```{r}
+parallel::detectCores() # How many CPU cores are available
+
+
+plan(sequential) # Parallel plan to sequential
+foreach::registerDoSEQ() # Register sequential backend for each lopp
+
+glm_model_reg <- logistic_reg(
+  mode = "classification",
+  penalty = tune(),
+  mixture = tune()
+) %>%
+  set_engine("glmnet")
+
+# Create workflow
+reg_wf <- workflow() %>%
+  add_model(glm_model_reg) %>%
+  add_recipe(recipe)
+
+# Space-filling grid over penalty and mixture
+glm_reg_grid <- grid_space_filling(
+  parameters(
+    penalty(range = c(0.001, 0.1)),
+    mixture(range = c(0, 1))
+  ),
+  size = 10
+)
+
+# Tune the model
+set.seed(42)
+grid_glm_tune <- tune_grid(
+  reg_wf,
+  resamples = folds,
+  grid = glm_reg_grid,
+  metrics = metric_set(accuracy, recall, kap),
+  control = control_grid(verbose = TRUE, save_pred = TRUE)
+)
+```
+
+```{r}
+# Select best model by accuracy (keep .25 threshold)
+best_glm <- select_best(grid_glm_tune, metric = "recall")
+
+# Finalize workflow
+final_glm_wf <- finalize_workflow(reg_wf, best_glm)
+final_glm_model <- fit(final_glm_wf, data = train_clean)
+```
+
+```{r}
+glm_reg_preds <- predict(final_glm_model, new_data = test_clean, type = "prob")
+
+glm_reg_results <- bind_cols(testdataFinal, glm_reg_preds)
+```
+
+```{r}
+threshold_values <- seq(0,1, by = 0.05)
+recall_by_threshold <- map_dfr(threshold_values, function(thresh) {
+  
+  temp <- glm_reg_results %>%
+    mutate(pred_class = ifelse(.pred_High >= thresh, "High", "Low")) %>%
+    mutate(pred_class = factor(pred_class, levels = c("Low", "High")))
+  
+  data.frame(
+    threshold = thresh,
+    recall = recall(temp, truth = ment14d_cat, estimate = pred_class, event_level = "second")$.estimate,
+    precision = precision(temp, truth = ment14d_cat, estimate = pred_class, event_level = "second")$.estimate,
+    f1 = f_meas(temp, truth = ment14d_cat, estimate = pred_class, beta = 1, event_level = "second")$.estimate
+  )
+})
+```
+
+
+```{r}
+recall_by_threshold %>%
+  pivot_longer(cols = c(recall, precision, f1), names_to = "Metric", values_to = "Value") %>%
+  ggplot(aes(x = threshold, y = Value, color = Metric)) +
+  geom_line(size = 1.2) +
+  labs(
+    title = "Recall, Precision, and F1 Score Across Thresholds",
+    x = "Classification Threshold",
+    y = "Metric Value"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+best_threshold <- recall_by_threshold %>%
+  arrange(desc(f1)) %>%
+  head(1)
+
+best_threshold
+```
+
+```{r}
+glm_reg_results_final <- glm_reg_results %>%
+  mutate(pred_class_cusreg = ifelse(.pred_High >= 0.3, "High", "Low")) %>%
+  mutate(pred_class_cusreg = factor(pred_class_cusreg, levels = c("Low", "High")))
+
+conf_mat(glm_reg_results_final, truth = ment14d_cat, estimate = pred_class_cusreg)
+metrics(glm_reg_results_final, truth = ment14d_cat, estimate = pred_class_cusreg)
+```
+```{r}
+summary(glm_reg_results$.pred_High)
+hist(glm_reg_results$.pred_High, breaks = 50)
+```
