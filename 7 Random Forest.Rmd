@@ -1,0 +1,165 @@
+---
+title: "Random Forest"
+author: "Steven Simonsen"
+date: "2025-05-01"
+output: html_document
+---
+#NOTE: YOU MUST RUN 4 DATA PRE-PROCESSING.RMD PRIOR TO RUNNING THIS CODE
+
+#Random Forest - CR
+```{r}
+library(future)
+plan(sequential)
+```
+
+
+```{r}
+freqs <- table(train_clean$ment14d_cat) # Calculate class weights based on imbalance
+weights <- round(max(freqs) / freqs, 2)
+weights
+```
+
+
+```{r}
+rf_model <- rand_forest(
+  mode = "classification",
+  mtry = tune(),
+  trees = tune(),
+  min_n = tune()
+) %>%
+  set_engine(
+    "ranger",
+    importance = "impurity",
+    splitrule = "extratrees",
+    class.weights = c(Low = 1.00, High = 6.32)
+  )
+```
+
+```{r}
+rf_wf <- workflow() %>% # Create workflow with preprocessing recipe and Random Forest model
+  add_model(rf_model) %>%
+  add_recipe(recipe)
+```
+
+```{r}
+set.seed(123) # Set up 5-fold cross-validation with stratified sampling on outcome
+folds <- vfold_cv(train_clean, v = 5, strata = ment14d_cat) 
+```
+
+```{r}
+exists("max_depth", where = "package:dials")
+```
+
+
+```{r}
+rf_grid <- grid_random(
+  trees(range = c(100, 500)),
+  mtry(range = c(3, 15)),
+  min_n(range = c(1, 10)),
+  size = 3
+)
+```
+
+
+```{r}
+start_time <- Sys.time()
+
+rf_results <- tune_grid(
+  rf_wf,
+  resamples = folds,
+  grid = rf_grid,
+  metrics = metric_set(pr_auc, accuracy, recall, precision, f_meas, kap),
+  control = control_grid(verbose = TRUE, allow_par = TRUE)
+)
+
+end_time <- Sys.time()
+
+end_time - start_time
+
+print(end_time - start_time)
+
+autoplot(rf_results) +
+  ggtitle("Random Forest Tuning Results") +
+  theme_minimal()
+```
+
+
+
+```{r}
+show_best(rf_results, metric = "recall", n = 5)
+
+best_rf <- select_best(rf_results, metric = "recall")
+print(best_rf)
+```
+
+```{r}
+final_rf_wf <- finalize_workflow(
+  rf_wf,
+  best_rf
+)
+
+final_rf_fit <- fit(final_rf_wf, data = train_clean) # Fit the finalized model
+```
+
+
+```{r}
+set.seed(42)
+rf_preds <- predict(final_rf_fit, new_data = test_clean) # Predict classes on test set using finalized Random Forest model
+
+rf_probs <- predict(final_rf_fit, new_data = test_clean, type = "prob") # Predict probabilities
+```
+
+```{r}
+rf_results_prob <- bind_cols(testdataFinal, rf_probs) %>% # Combine predictions with test data
+  mutate(pred_class_custom = if_else(.pred_High >= 0.25, "High", "Low")) %>% # Classify High if probability is greater than or equal to .25
+  mutate(pred_class_custom = factor(pred_class_custom, levels = c("Low", "High")))
+```
+
+
+```{r}
+metrics(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom) # Evaluate performance
+
+recall(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom, event_level = "second")
+precision(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom, event_level = "second")
+
+conf_mat(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom) %>% # Visualize the confusion matrix as a heatmap
+  autoplot(type = "heatmap") +
+  ggtitle("Random Forest Confusion Matrix (Threshold = 0.25)") +
+  theme_minimal()
+```
+
+```{r}
+# Recall Low and High
+recall_low_rf <- recall(
+  rf_results_prob,
+  truth = ment14d_cat,
+  estimate = pred_class_custom,
+  event_level = "first"
+) %>%
+  mutate(class = "Low")
+
+recall_high_rf <- recall(
+  rf_results_prob,
+  truth = ment14d_cat,
+  estimate = pred_class_custom,
+  event_level = "second"
+) %>%
+  mutate(class = "High")
+
+bind_rows(recall_low_rf, recall_high_rf) # Combine recall results
+```
+
+
+```{r}
+final_rf_fit %>% # Show variable importance: Top 15
+  extract_fit_parsnip() %>% 
+  vip::vip(num_features = 15)
+```
+
+```{r}
+metrics(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom) %>%
+  bind_rows(
+    recall(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom, event_level = "second") %>% mutate(.metric = "recall_high"),
+    precision(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom, event_level = "second") %>% mutate(.metric = "precision_high")
+  )
+```
