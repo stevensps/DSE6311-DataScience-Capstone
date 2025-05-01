@@ -1,0 +1,142 @@
+---
+title: "XGBoost"
+author: "Steven Simonsen"
+date: "2025-05-01"
+output: pdf_document
+---
+#NOTE: YOU MUST RUN 4 DATA PRE-PROCESSING.RMD PRIOR TO RUNNING THIS CODE
+
+# XGBoost - SS
+```{r}
+parallel::detectCores() # How many CPU cores are available
+
+
+plan(sequential) # Parallel plan to sequential
+foreach::registerDoSEQ() # Register sequential backend for each lopp
+
+xgboost_model <- boost_tree(
+  mode = "classification",
+  trees = tune(),
+  tree_depth = tune(),
+  learn_rate = tune(),
+  loss_reduction = tune(),
+  sample_size = tune(),
+  min_n = tune()
+) %>%
+  set_engine("xgboost", scale_pos_weight = tune())
+
+xgboost_wf <- workflow() %>%
+  add_model(xgboost_model) %>%
+  add_recipe(recipe)
+
+xgboost_grid <- grid_space_filling(
+  trees(range = c(100, 300)),
+  tree_depth(range = c(3, 10)),
+  learn_rate(range = c(0.01, 0.3)),
+  loss_reduction(range = c(0, 5)),
+  sample_size = sample_prop(range = c(0.5, 1)),
+  min_n(range = c(1, 10)),
+  scale_pos_weight(range = c(1, 10)),
+  size = 6
+)
+
+set.seed(42)
+
+grid_tune <- tune_grid(
+  xgboost_wf,
+  resamples = folds,
+  grid = xgboost_grid,
+  metrics = metric_set(accuracy, kap, recall),
+  control = control_grid(verbose = TRUE, save_pred = TRUE)
+)
+
+bestgrid_xgboost <- select_best(grid_tune, metric = "recall")
+
+final_xg_wf <- finalize_workflow(xgboost_wf, bestgrid_xgboost)
+
+#final_xg_fit <- fit(final_xg_wf, data = traindataFinal)
+```
+```{r}
+final_xg_fit <- fit(final_xg_wf, data = train_clean)
+```
+
+
+#XG Boost Predictions - SS
+```{r}
+set.seed(42)
+xgboost_preds <- predict(final_xg_fit, new_data = test_clean)
+
+xgboost_results <- bind_cols(testdataFinal, xgboost_preds) %>%
+  rename(pred_class = .pred_class)
+
+recall(xgboost_results, truth = ment14d_cat, estimate = pred_class, event_level = "second")
+
+conf_mat(xgboost_results, truth = ment14d_cat, estimate = pred_class) %>%
+  autoplot(type = "heatmap") +
+  ggtitle("XGBoost Confusion Matrix (Default Threshold)") +
+  theme_minimal()
+```
+
+```{r}
+set.seed(42)
+xgboost_probs <- predict(final_xg_fit, new_data = testdataFinal, type = "prob") # Predict probabilities; apply 0.25 threshold
+
+xgboost_results_prob <- bind_cols(testdataFinal, xgboost_probs) %>%
+  mutate(pred_class_custom = if_else(.pred_High >= 0.25, "High", "Low")) %>%
+  mutate(pred_class_custom = factor(pred_class_custom, levels = c("Low", "High")))
+```
+
+```{r}
+metrics(xgboost_results_prob, truth = ment14d_cat, estimate = pred_class_custom) # Metrics using 0.25 threshold
+
+conf_mat(xgboost_results_prob, truth = ment14d_cat, estimate = pred_class_custom) %>% # Confusion matrix using 0.25 threshold
+  autoplot(type = "heatmap") +
+  ggtitle("XGBoost Confusion Matrix (Threshold = 0.25)") +
+  theme_minimal()
+```
+
+```{r}
+# Recall Low and High
+recall_low <- recall(
+  xgboost_results_prob,
+  truth = ment14d_cat,
+  estimate = pred_class_custom,
+  event_level = "first"
+) %>%
+  mutate(class = "Low")
+
+recall_high <- recall(
+  xgboost_results_prob,
+  truth = ment14d_cat,
+  estimate = pred_class_custom,
+  event_level = "second"
+) %>%
+  mutate(class = "High")
+
+bind_rows(recall_low, recall_high)
+```
+
+```{r}
+# Precision for High and Low
+precision_low <- precision(
+  xgboost_results_prob,
+  truth = ment14d_cat,
+  estimate = pred_class_custom,
+  event_level = "first"
+) %>%
+  mutate(class = "Low")
+
+precision_high <- precision(
+  xgboost_results_prob,
+  truth = ment14d_cat,
+  estimate = pred_class_custom,
+  event_level = "second"
+) %>%
+  mutate(class = "High")
+
+bind_rows(precision_low, precision_high)
+```
+
+```{r}
+vip(final_xg_fit, num_features = 15)
+```
