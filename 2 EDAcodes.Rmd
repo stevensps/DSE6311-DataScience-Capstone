@@ -27,6 +27,9 @@ library(kableExtra)
 library(scales)
 library(janitor)
 library(fastDummies)
+library(nnet) # Load for multinomial logistic regression
+library(ranger) # Fast Random Forest engine
+library(yardstick)
 ```
 
 
