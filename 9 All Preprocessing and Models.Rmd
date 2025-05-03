@@ -611,26 +611,28 @@ folds <- vfold_cv(train_clean, v = 5, strata = ment14d_cat)
 
 ## Principle Component Analysis (PCA) on Scaled Data - CR
 ```{r}
-pca_input_data <- traindataFinal %>%
-  filter(if_all(everything(), ~ !is.na(.) & is.finite(.))) # Filter out rows with any NA or infinite values
-
-pca_input <- pca_input_data %>% 
-  select(where(is.numeric)) %>% # Keep only numeric columns for PCA
-  scale() # Standardize numeric features
-
-pca_result <- prcomp(pca_input, center = TRUE, scale. = TRUE) #PCA with centering and scaling
-
-plot(pca_result, type = "l", main = "Scree Plot") #Visualize variance by each principle component
-summary(pca_result) #Output cumulative variance to decide how many components to retain
+pca_input <- train_clean %>%
+  select(where(is.numeric)) %>% # Select only numeric columns
+  filter(if_all(everything(), ~ !is.na(.) & is.finite(.))) %>% #remove rows with NA/infinite values
+  scale() # scale the data
 ```
 
 ```{r}
-pca_scores <- as.data.frame(pca_result$x) # Get PCA scores
-pca_scores$ment14d_cat <- pca_input_data$ment14d_cat # Add original outcome category to PCA scores
+pca_result <- prcomp(pca_input, center = TRUE, scale. = TRUE) # Run PCA on the scaled input
 ```
 
 ```{r}
-ggplot(pca_scores, aes(x = PC1, y = PC2, color = ment14d_cat)) +
+plot(pca_result, type = "l", main = "Scree Plot") # Create a scree plot
+summary(pca_result) # Summary of results
+```
+
+```{r}
+pca_scores <- as.data.frame(pca_result$x) # Convert the PCA results into a data frame
+pca_scores$ment14d_cat <- train_clean$ment14d_cat
+```
+
+```{r}
+ggplot(pca_scores, aes(x = PC1, y = PC2, color = ment14d_cat)) + # Plot the first two principal components
   geom_point(alpha = 0.5) +
   labs(title = "PCA: PC1 vs PC2 colored by ment14d_cat") +
   theme_minimal()
@@ -638,20 +640,19 @@ ggplot(pca_scores, aes(x = PC1, y = PC2, color = ment14d_cat)) +
 
 ```{r}
 set.seed(123)
-kmeans_result <- kmeans(pca_scores[, 1:2], centers = 3)  # Using PC1 & PC2 # Run k-means clustering with k = 3 on PC1 & PC2
-
-pca_scores$cluster <- as.factor(kmeans_result$cluster) # Assign labels
+kmeans_result <- kmeans(pca_scores[, 1:2], centers = 3) # Run K-means on the first two principal components using 3 clusters
+pca_scores$cluster <- as.factor(kmeans_result$cluster)
 ```
 
 ```{r}
-ggplot(pca_scores, aes(x = PC1, y = PC2, color = cluster)) +
+ggplot(pca_scores, aes(x = PC1, y = PC2, color = cluster)) + # Plot clusters found by K-means
   geom_point(alpha = 0.5) +
   labs(title = "K-means Clusters (k=3) on PCA Components") +
   theme_minimal()
 ```
 
 ```{r}
-table(Actual = pca_scores$ment14d_cat, Cluster = pca_scores$cluster) # Compare clusters to original categories
+table(Actual = pca_scores$ment14d_cat, Cluster = pca_scores$cluster) # Compare the K-means to mental health categories
 ```
 
 ##### Modeling #####
@@ -961,7 +962,7 @@ conf_mat(xgboost_results, truth = ment14d_cat, estimate = pred_class) %>%
 
 ```{r}
 set.seed(42)
-xgboost_probs <- predict(final_xg_fit, new_data = testdataFinal, type = "prob") # Predict probabilities; apply 0.25 threshold
+xgboost_probs <- predict(final_xg_fit, new_data = test_clean, type = "prob") # Predict probabilities; apply 0.25 threshold
 
 xgboost_results_prob <- bind_cols(testdataFinal, xgboost_probs) %>%
   mutate(pred_class_custom = if_else(.pred_High >= 0.25, "High", "Low")) %>%
@@ -1021,6 +1022,27 @@ bind_rows(precision_low, precision_high)
 
 ```{r}
 vip(final_xg_fit, num_features = 15)
+```
+
+#BK
+```{r}
+# Bind the true labels
+xgboost_results <- bind_cols(
+  xgboost_probs,
+  testdataFinal %>% select(ment14d_cat)
+)
+```
+
+#BK
+```{r}
+# Load yardstick for metrics
+library(yardstick)
+
+# Compute ROC curve and AUC
+roc_curve(xgboost_results, truth = ment14d_cat, .pred_High) %>%
+  autoplot()
+
+roc_auc(xgboost_results, truth = ment14d_cat, .pred_High)
 ```
 
 ```{r}
