@@ -79,7 +79,7 @@ conf_mat(xgboost_results, truth = ment14d_cat, estimate = pred_class) %>%
 
 ```{r}
 set.seed(42)
-xgboost_probs <- predict(final_xg_fit, new_data = testdataFinal, type = "prob") # Predict probabilities; apply 0.25 threshold
+xgboost_probs <- predict(final_xg_fit, new_data = test_clean, type = "prob") # Predict probabilities; apply 0.25 threshold
 
 xgboost_results_prob <- bind_cols(testdataFinal, xgboost_probs) %>%
   mutate(pred_class_custom = if_else(.pred_High >= 0.25, "High", "Low")) %>%
@@ -139,4 +139,25 @@ bind_rows(precision_low, precision_high)
 
 ```{r}
 vip(final_xg_fit, num_features = 15)
+```
+
+#BK
+```{r}
+# Bind the true labels
+xgboost_results <- bind_cols(
+  xgboost_probs,
+  testdataFinal %>% select(ment14d_cat)
+)
+```
+
+#BK
+```{r}
+# Load yardstick for metrics
+library(yardstick)
+
+# Compute ROC curve and AUC
+roc_curve(xgboost_results, truth = ment14d_cat, .pred_High) %>%
+  autoplot()
+
+roc_auc(xgboost_results, truth = ment14d_cat, .pred_High)
 ```
