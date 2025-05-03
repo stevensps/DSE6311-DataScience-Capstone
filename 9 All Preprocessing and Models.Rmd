@@ -772,11 +772,6 @@ folds <- vfold_cv(train_clean, v = 5, strata = ment14d_cat)
 ```
 
 ```{r}
-exists("max_depth", where = "package:dials")
-```
-
-
-```{r}
 rf_grid <- grid_random(
   trees(range = c(100, 500)),
   mtry(range = c(3, 15)),
