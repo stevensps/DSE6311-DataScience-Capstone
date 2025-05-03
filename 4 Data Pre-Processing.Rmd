@@ -567,7 +567,7 @@ recipe <- recipe(ment14d_cat ~ ., data = train_clean) %>%
   step_impute_mode(all_of(problematic_nominal_vars)) %>%
   # step_impute_mean(all_numeric_predictors()) %>% # used for xgboost scale_pos_weight
   # step_impute_mode(all_nominal_predictors()) %>% # used for xgboost scale_pos_weight
-  step_upsample(ment14d_cat) %>%
+  step_downsample(ment14d_cat) %>%
   #step_dummy(all_nominal_predictors(), one_hot = TRUE) %>%
   step_zv(all_predictors()) %>%
   step_center(all_numeric_predictors()) %>%
