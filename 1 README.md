@@ -6,7 +6,7 @@ The code within this project should be run in the following order to reproduce t
 1) Download and run 2 EDAcode.Rmd in RStudio. NOTE: This step is optional in the process, and highlights the initial data analaysis done for modeling.
 2) Run 3 calcSplitRatio-3.R in RStudio and place in the user's working directory, which can be any folder on your computer. This is a custom function that determines the optimal train and test splits.
 3) Run 4 Data Pre-Processing.Rmd in RStudio and place in the user's working directory, which can be any folder on your computer. These are the preprocessing steps to get the data in a model-ready state, and includes data imputation.
-4) Run 5 PCA and Knn.Rmd in RStudio and place in the user's working directory, which can be any folder on your computer. This file performs PCA to explore dimensionality reduction and Knn to K-Means to examine clustering of data points.
+4) Run 5 PCA and K-Means.Rmd in RStudio and place in the user's working directory, which can be any folder on your computer. This file performs PCA to explore dimensionality reduction and Knn to K-Means to examine clustering of data points.
 5) Run 6 Binary Logistic Regression.Rmd and place in the user's working directory, which can be any folder on your computer. This model runs binary logistic regression, both with and without hyperparameter tuning as a baseline model.
 6) Run 7 Random Forest.Rmd and place in the user's working directory, which can be any folder on your computer. This model runs our champion model, Random Forest, and outputs metrics and results.
 7) Run 8 XGBoost.Rmd and place in the user's working directory, which can be any folder on your computer. This model runs our runner-up model, XGBoost, and outputs metrics and results.
