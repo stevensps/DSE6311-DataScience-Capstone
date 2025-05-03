@@ -563,7 +563,7 @@ recipe <- recipe(ment14d_cat ~ ., data = train_clean) %>%
   step_impute_mode(all_of(problematic_nominal_vars)) %>%
   # step_impute_mean(all_numeric_predictors()) %>% # used for xgboost scale_pos_weight
   # step_impute_mode(all_nominal_predictors()) %>% # used for xgboost scale_pos_weight
-  step_upsample(ment14d_cat) %>%
+  step_downsample(ment14d_cat) %>%
   #step_dummy(all_nominal_predictors(), one_hot = TRUE) %>%
   step_zv(all_predictors()) %>%
   step_center(all_numeric_predictors()) %>%
@@ -767,16 +767,11 @@ rf_wf <- workflow() %>% # Create workflow with preprocessing recipe and Random F
 ```
 
 ```{r}
-set.seed(123) # Set up 5-fold cross-validation with stratified sampling on outcome
-folds <- vfold_cv(train_clean, v = 5, strata = ment14d_cat) 
-```
-
-```{r}
 rf_grid <- grid_random(
   trees(range = c(100, 500)),
   mtry(range = c(3, 15)),
   min_n(range = c(1, 10)),
-  size = 3
+  size = 30
 )
 ```
 
@@ -831,7 +826,7 @@ rf_probs <- predict(final_rf_fit, new_data = test_clean, type = "prob") # Predic
 
 ```{r}
 rf_results_prob <- bind_cols(testdataFinal, rf_probs) %>% # Combine predictions with test data
-  mutate(pred_class_custom = if_else(.pred_High >= 0.25, "High", "Low")) %>% # Classify High if probability is greater than or equal to .25
+  mutate(pred_class_custom = if_else(.pred_High >= 0.20, "High", "Low")) %>% # Classify High if probability is greater than or equal to .20
   mutate(pred_class_custom = factor(pred_class_custom, levels = c("Low", "High")))
 ```
 
@@ -844,7 +839,7 @@ precision(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom, ev
 
 conf_mat(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom) %>% # Visualize the confusion matrix as a heatmap
   autoplot(type = "heatmap") +
-  ggtitle("Random Forest Confusion Matrix (Threshold = 0.25)") +
+  ggtitle("Random Forest Confusion Matrix (Threshold = 0.20)") +
   theme_minimal()
 ```
 
