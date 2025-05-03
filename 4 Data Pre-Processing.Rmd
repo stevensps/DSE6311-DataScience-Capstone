@@ -169,7 +169,7 @@ brfss_subset$region <- as.factor(brfss_subset$region) #Convert region to factor
 # Initial Data Split - CR and SS
 ```{r}
 getwd()
-source("calcSplitRatio-3.R")
+source("3 calcSplitRatio-3.R")
 split_ratio <- calcSplitRatio(df = brfss_subset)
 
 set.seed(42)
