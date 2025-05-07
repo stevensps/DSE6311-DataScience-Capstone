@@ -8,11 +8,7 @@ output: pdf_document
 
 # XGBoost - SS
 ```{r}
-parallel::detectCores() # How many CPU cores are available
-
-
-plan(sequential) # Parallel plan to sequential
-foreach::registerDoSEQ() # Register sequential backend for each lopp
+plan(sequential) #Sequential planning as opposed to parallel
 
 xgboost_model <- boost_tree(
   mode = "classification",
