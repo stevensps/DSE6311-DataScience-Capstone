@@ -9,8 +9,7 @@ output: html_document
 #Random Forest - CR
 
 ```{r}
-library(future)
-plan(sequential)
+plan(sequential) #Sequential planning as opposed to parallel
 ```
 
 
