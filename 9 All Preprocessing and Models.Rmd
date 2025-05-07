@@ -659,6 +659,7 @@ table(Actual = pca_scores$ment14d_cat, Cluster = pca_scores$cluster) # Compare t
 
 #GLM - CR
 ```{r}
+plan(sequential) # sequential run as opposed to parallel
 glm_model <- logistic_reg(mode = "classification") %>% # logistic regression model for classification
   set_engine("glm")
 ```
@@ -732,6 +733,7 @@ bind_rows(recall_low, recall_high) # Combine recall results
 ```
 
 #Random Forest - CR
+
 ```{r}
 library(future)
 plan(sequential)
@@ -755,8 +757,8 @@ rf_model <- rand_forest(
   set_engine(
     "ranger",
     importance = "impurity",
-    splitrule = "extratrees",
-    class.weights = c(Low = 1.00, High = 6.32)
+    splitrule = "extratrees"
+    #class.weights = c(Low = 1.00, High = 6.32)
   )
 ```
 
@@ -771,7 +773,7 @@ rf_grid <- grid_random(
   trees(range = c(100, 500)),
   mtry(range = c(3, 15)),
   min_n(range = c(1, 10)),
-  size = 30
+  size = 3
 )
 ```
 
@@ -826,7 +828,7 @@ rf_probs <- predict(final_rf_fit, new_data = test_clean, type = "prob") # Predic
 
 ```{r}
 rf_results_prob <- bind_cols(testdataFinal, rf_probs) %>% # Combine predictions with test data
-  mutate(pred_class_custom = if_else(.pred_High >= 0.20, "High", "Low")) %>% # Classify High if probability is greater than or equal to .20
+  mutate(pred_class_custom = if_else(.pred_High >= 0.25, "High", "Low")) %>% # Classify High if probability is greater than or equal to .20
   mutate(pred_class_custom = factor(pred_class_custom, levels = c("Low", "High")))
 ```
 
@@ -839,7 +841,7 @@ precision(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom, ev
 
 conf_mat(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom) %>% # Visualize the confusion matrix as a heatmap
   autoplot(type = "heatmap") +
-  ggtitle("Random Forest Confusion Matrix (Threshold = 0.20)") +
+  ggtitle("Random Forest Confusion Matrix (Threshold = 0.25)") +
   theme_minimal()
 ```
 
@@ -878,14 +880,40 @@ metrics(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom) %>%
     precision(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom, event_level = "second") %>% mutate(.metric = "precision_high")
   )
 ```
+# Threshold Metrics
+```{r}
+threshold_values <- seq(0.25, 0.75, by = 0.05) # Evaluate multiple thresholds
+
+rf_threshold_metrics <- purrr::map_dfr(threshold_values, function(thresh) {
+  temp <- bind_cols(test_clean, rf_probs) %>%
+    mutate(pred_class = if_else(.pred_High >= thresh, "High", "Low"),
+           pred_class = factor(pred_class, levels = c("Low", "High")))
+
+  data.frame(
+    threshold = thresh,
+    precision = precision(temp, truth = ment14d_cat, estimate = pred_class, event_level = "second")$.estimate,
+    recall    = recall(temp, truth = ment14d_cat, estimate = pred_class, event_level = "second")$.estimate,
+    f1        = f_meas(temp, truth = ment14d_cat, estimate = pred_class, beta = 1, event_level = "second")$.estimate
+  )
+})
+```
+
+```{r}
+rf_threshold_metrics %>%
+  tidyr::pivot_longer(cols = c(precision, recall, f1), names_to = "Metric", values_to = "Value") %>%
+  ggplot2::ggplot(aes(x = threshold, y = Value, color = Metric)) +
+  geom_line(size = 1.2) +
+  labs(
+    title = "Precision, Recall, and F1 Score Across Thresholds",
+    x = "Threshold",
+    y = "Metric Value"
+  ) +
+  theme_minimal()
+```
 
 # XGBoost - SS
 ```{r}
-parallel::detectCores() # How many CPU cores are available
-
-
-plan(sequential) # Parallel plan to sequential
-foreach::registerDoSEQ() # Register sequential backend for each lopp
+plan(sequential) # sequential run as opposed to parallel
 
 xgboost_model <- boost_tree(
   mode = "classification",
@@ -1036,11 +1064,7 @@ roc_auc(xgboost_results, truth = ment14d_cat, .pred_High)
 ```
 
 ```{r}
-parallel::detectCores() # How many CPU cores are available
-
-
-plan(sequential) # Parallel plan to sequential
-foreach::registerDoSEQ() # Register sequential backend for each lopp
+plan(sequential) # sequential run as opposed to parallel
 
 glm_model_reg <- logistic_reg(
   mode = "classification",
