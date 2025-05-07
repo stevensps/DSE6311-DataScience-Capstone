@@ -445,8 +445,7 @@ cor_matrix <- cor(brfss_numeric)
 corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.8)
 
 ```
-
-# Chi Squared iterative test (in report) - SS
+# Iterative Chi Squared Statistic Test
 ```{r}
 categoricalVars <- names(brfss_subset)[sapply(brfss_subset, is.factor)]
 chiResults <- list()
@@ -455,23 +454,20 @@ for (i in 1:(length(categoricalVars) - 1)) {
   for (j in (i+1):length(categoricalVars)) {
     var1 <- categoricalVars[i]
     var2 <- categoricalVars[j] # SS - iterate through predictors to compare 2
-    
+
     chiTest <- chisq.test(table(brfss_subset[[var1]], brfss_subset[[var2]]),
                           simulate.p.value = TRUE)
-    chiResults[[paste(var1, var2, sep = "_vs_")]] <- # SS - run chi sq and list result
-      list(
-        variable1 = var1,
-        variable2 = var2,
-        p_value = chiTest$p.value,
-        statistic = chiTest$statistic
-      )
+    
+    chiResults[[paste(var1, var2, sep = "_vs_")]] <- list( # SS - run chi sq and list result
+      variable1 = var1,
+      variable2 = var2,
+      p_value = chiTest$p.value,
+      statistic = chiTest$statistic
+    )
   }
 }
 
-significantchiResult <- Filter(function(x) x$p_value < 0.05, chiResults)
-```
-# Chi-squared heatmap and table (in report) - SS
-```{r}
+
 chiResultsDF <- do.call(rbind, lapply(chiResults, function(x) {
   data.frame(
     variable1 = x$variable1,
@@ -479,37 +475,52 @@ chiResultsDF <- do.call(rbind, lapply(chiResults, function(x) {
     statistic = x$statistic,
     p_value = x$p_value
   )
-}
-  )) # SS - do.call allows dynamic execution of another function
+})) # SS - do.call allows dynamic execution of another function
 
-significantheatResult <- subset(chiResultsDF, p_value < 0.05)
+
+chiResultsDF <- chiResultsDF %>%
+  arrange(p_value) %>%
+  mutate(
+    rank = row_number(),
+    adjusted_p_value = p.adjust(p_value, method = "BH") # Benjamini-Hochberg Correction
+  )
+
+
+significantResults <- chiResultsDF %>% filter(adjusted_p_value < 0.05) #Filter based on adjusted p-value
+
 
 heatmapData <- acast( #SS - acast to convert to matrix for heatmap
-  significantheatResult,
+  chiResultsDF,
   variable1 ~ variable2,
-  value.var =  "statistic",
+  value.var = "adjusted_p_value",
   fill = NA
 )
 
+
 ggplot(melt(heatmapData, na.rm = TRUE), aes(Var1, Var2, fill = value)) +
   geom_tile() +
-  scale_fill_viridis_c(option = "plasma", name = "Chi-Square Stat") +
-  labs(title = "Heatmap of Iterative Chi-Square Stats",
+  scale_fill_gradientn(
+    colors = c("gray", "red", "orange", "yellow", "green"), # SS: Plot Heatmap with Custom Coloring for Significance
+    values = scales::rescale(c(0.01, 0.05, 0.10, 0.20, 1)),
+    name = "Adjusted P-value"
+  ) +
+  labs(title = "Benjamini-Hochberg Adjusted P-value Heatmap",
        x = "Variable 1",
        y = "Variable 2") +
   theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) #SS - create heatmap
-```
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-## Generate Focused table with top results (in report) - SS
-```{r}
-topResultsHeat <- significantheatResult[order(-significantheatResult$statistic), ][1:10, ]
-print(topResultsHeat) #SS - Table to show only top 10 results based on statistic and p value less than 0.05
+
+topResultsHeat <- significantResults %>%
+  arrange(-statistic) %>%
+  slice(1:10) #SS: Gather top 10 results based on chi-square statistic
+
+print(topResultsHeat) 
+
 
 topResultsHeat %>%
-  kable(format = "html") %>%
+  kable(format = "html") %>% #SS: Display top 10 in report table
   kable_styling()
-
 ```
 
 # PCA biplot - CR
@@ -681,3 +692,4 @@ brfss_encoded <- fastDummies::dummy_cols(
   remove_selected_columns = TRUE  # Drop original factor columns
 )
 ```
+
