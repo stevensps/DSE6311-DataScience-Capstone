@@ -8,6 +8,7 @@ output: pdf_document
 
 #GLM - CR
 ```{r}
+plan(sequential) #Sequential planning as opposed to parallel
 glm_model <- logistic_reg(mode = "classification") %>% # logistic regression model for classification
   set_engine("glm")
 ```
