@@ -1,0 +1,101 @@
+---
+title: "9b Additional Data Visualizations"
+author: "Christopher Rodgers, Benajamin Kelley, and Steven Simonsen"
+date: "2025-05-10"
+output: pdf_document
+---
+#NOTE: 4 DATA-PREPROCESSING.RMD MUST BE RUN PRIOR TO RUNNING THIS FILE.
+
+# Additional Data Exploration and Graphs - SS
+
+## Side by side bar before and after downsampling
+```{r}
+brfss_summary <- traindataFinal %>%
+  count(ment14d_cat) #Summary dataset, not used below but good to have
+
+
+library(patchwork)  # For combining plots
+
+# Count response before downsampling in total dataset
+class_before <- brfss_subset %>%
+  count(ment14d_cat) %>%
+  mutate(stage = "Before Processing (All Data)")
+
+# Count response after downsampling in train
+class_after <- traindataFinal %>%
+  count(ment14d_cat) %>%
+  mutate(stage = "After Processing (Train Data)")
+
+# Combine both datasets
+class_comparison <- bind_rows(class_before, class_after)
+
+# Create side by side barchart
+ggplot(class_comparison, aes(x = ment14d_cat, y = n, fill = stage)) +
+  geom_bar(stat = "identity", position = "dodge") +  
+  geom_text(aes(label = scales::comma(n)), vjust = -0.2, size = 5, position = position_dodge(0.9)) +
+  scale_fill_manual(values = c("Before Processing (All Data)" = "darkred", "After Processing (Train Data)" = "lightblue")) +
+  scale_y_continuous(labels = scales::comma) +
+  theme_minimal() +
+  labs(title = "Impact of Downsampling on Class Balance",
+       x = "Mental Distress Category",
+       y = "Participant Count",
+       fill = "Dataset Stage")
+```
+
+## Low and High Mental Health Day Proportions by Age Group
+```{r}
+
+# Create age groups
+brfss_subset <- brfss_subset %>%
+  mutate(age_group = case_when(
+    age80 < 30 ~ "18-29",
+    age80 < 45 ~ "30-44",
+    age80 < 60 ~ "45-59",
+    age80 >= 60 ~ "60+"
+  ))
+
+# Count occurrences for Low/High within each age group
+age_distress_counts <- brfss_subset %>%
+  count(age_group, ment14d_cat)
+
+# Stacked bar chart with percentage formatting & data labels
+ggplot(age_distress_counts, aes(x = age_group, y = n, fill = ment14d_cat)) +
+  geom_bar(stat = "identity", position = "fill") +  
+  geom_text(aes(label = scales::comma(n)), position = position_fill(vjust = 0.5), size = 5) +
+  scale_fill_manual(values = c("Low" = "lightblue", "High" = "darkred")) +
+  scale_y_continuous(labels = scales::percent_format(scale = 100)) +
+  theme_minimal() +
+  labs(title = "Percentage of Mental Distress Across Age Groups (With Counts)",
+       x = "Age Group",
+       y = "Percentage")
+```
+
+## Income and Medical Cost Barriers stacked bar chart
+```{r}
+brfss_subset <- brfss_subset %>%
+  mutate(income_labels = factor (incomg1, levels=1:8,
+                           labels = c("Less than $10k", "$10k–$15k", "$15k–$20k", "$20k–$25k", "$25k–$35k", "$35k–$50k", "$50k–$75k", "Over $75k")))
+
+income_medcost_counts <- brfss_subset %>%
+  filter(medcost1 %in% c(1, 2)) %>%
+  count(income_labels, medcost1) %>%
+  mutate(medcost1 = case_when(
+    medcost1 == 2 ~ "No Cost Barrier",
+    medcost1 == 1 ~ "Avoided Doctor Due to Cost"
+  ))
+
+
+ggplot(income_medcost_counts, aes(x = income_labels, y = n, fill = medcost1)) +
+  geom_bar(stat = "identity", position = "fill") +
+  geom_text(aes(label = scales::comma(n)), 
+            position = position_fill(vjust = 0.5),
+            size = 4, fontface = "bold", color = "black") +
+  scale_fill_manual(values = c("No Cost Barrier" = "lightblue", "Avoided Doctor Due to Cost" = "darkred")) +
+  scale_y_continuous(labels = scales::percent_format(scale = 100)) +
+  theme_minimal() +
+  theme(axis.text = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Income and Medical Cost Barriers",
+       x = "Income Group",
+       y = "Percentage",
+       fill = "Medical Cost Concern")
+```
