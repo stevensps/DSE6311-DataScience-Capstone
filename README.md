@@ -3,7 +3,7 @@ By: Ben K., Chris R., and Steven S.
 
 ## Code Execution Flow
 The code within this project should be run in the following order to reproduce the results discovered from this reasearch:
-1) Download and run 2 EDAcode.Rmd in RStudio. NOTE: This step is optional in the process, and highlights the initial data analaysis done for modeling.
+1) **Optional**: Download and run 2 EDAcode.Rmd in RStudio. NOTE: This step is optional in the process, and highlights the initial data analaysis done for modeling.
 2) Run 3 calcSplitRatio-3.R in RStudio and place in the user's working directory, which can be any folder on your computer. This is a custom function that determines the optimal train and test splits.
 3) Run 4 Data Pre-Processing.Rmd in RStudio and place in the user's working directory, which can be any folder on your computer. These are the preprocessing steps to get the data in a model-ready state, and includes data imputation.
 4) Run 5 PCA and K-Means.Rmd in RStudio and place in the user's working directory, which can be any folder on your computer. This file performs PCA to explore dimensionality reduction and Knn to K-Means to examine clustering of data points.
@@ -11,6 +11,7 @@ The code within this project should be run in the following order to reproduce t
 6) Run 7 Random Forest.Rmd and place in the user's working directory, which can be any folder on your computer. This model runs our champion model, Random Forest, and outputs metrics and results.
 7) Run 8 XGBoost.Rmd and place in the user's working directory, which can be any folder on your computer. This model runs our runner-up model, XGBoost, and outputs metrics and results.
 8) **Optional**: If you wish to run all code, ranging from 4 Data Pre-Processing through.Rmd 8 XGBoost.Rmd, you may do so with this file. Please note that 3 calcSplitRatio-3.R is still required to run first. **Note**: Running step 8) requires significant computing resources, and for the common machine (i.e. personal laptop, etc.) will take at least 4 hours to run all of this code.
+9) **Optional**: Run 9b Additional Data Visualizations.Rmd and place in the user's working directory, which can be any folder on your computer. This file performs optional data visualizations to contribute to the overall insights and findings within the BRFSS dataset.
 
 ## Project Background and Question
 ### Project Background
