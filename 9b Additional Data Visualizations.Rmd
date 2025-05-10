@@ -99,3 +99,49 @@ ggplot(income_medcost_counts, aes(x = income_labels, y = n, fill = medcost1)) +
        y = "Percentage",
        fill = "Medical Cost Concern")
 ```
+
+## Table showing breakdown of model performance
+```{r}
+glimpse(model_metrics)
+unique(model_metrics$.metric)
+str(model_metrics)
+
+
+model_metrics <- bind_rows(
+  metrics(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom) %>%
+    bind_rows(recall(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom, event_level = "second") %>% 
+                mutate(.metric = "recall")) %>%
+    mutate(model = "Random Forest"),
+
+  metrics(xgboost_results_prob, truth = ment14d_cat, estimate = pred_class_custom) %>%
+    bind_rows(recall(xgboost_results_prob, truth = ment14d_cat, estimate = pred_class_custom, event_level = "second") %>% 
+                mutate(.metric = "recall")) %>%
+    mutate(model = "XGBoost"),
+
+  metrics(glm_results_prob, truth = ment14d_cat, estimate = pred_class_custom) %>%
+    bind_rows(recall(glm_results_prob, truth = ment14d_cat, estimate = pred_class_custom, event_level = "second") %>% 
+                mutate(.metric = "recall")) %>%
+    mutate(model = "Logistic Regression (No Tuning)")
+) %>%
+  group_by(model, .metric) %>%
+  summarize(.estimate = mean(.estimate, na.rm = TRUE), .groups = "drop") %>%  
+  ungroup()
+
+model_metrics <- model_metrics %>%
+  mutate(.estimate = as.numeric(.estimate))
+
+# Convert recall values to bold text
+table_preview <- model_metrics %>%
+  pivot_wider(names_from = .metric, values_from = .estimate) %>%
+  mutate(recall = paste0("**", round(recall, 3), "**"))
+
+# Generate the formatted table
+gt_table <- table_preview %>%
+  gt() %>%
+  tab_header(title = "Comparative Model Metrics") %>%
+  fmt_number(columns = c("accuracy", "kap"), decimals = 3) %>%
+  fmt_markdown(columns = c("recall"))
+
+# Print table
+gt_table
+```
