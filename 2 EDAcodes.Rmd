@@ -511,9 +511,7 @@ ggplot(melt(heatmapData, na.rm = TRUE), aes(Var1, Var2, fill = value)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 
-topResultsHeat <- significantResults %>%
-  arrange(-statistic) %>%
-  slice(1:10) #SS: Gather top 10 results based on chi-square statistic
+topResultsHeat <- significantResults[order(-significantResults$statistic), ][1:10, ]
 
 print(topResultsHeat) 
 
