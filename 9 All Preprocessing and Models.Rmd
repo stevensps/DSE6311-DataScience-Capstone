@@ -671,11 +671,11 @@ glm_wf <- workflow() %>% # workflow with our model and recipe
 ```
 
 ```{r}
-glm_fit <- fit(glm_wf, data = traindataFinal) # Fit logistic regression model to training data
+glm_fit <- fit(glm_wf, data = train_clean) # Fit logistic regression model to training data
 ```
 
 ```{r}
-glm_probs <- predict(glm_fit, new_data = testdataFinal, type = "prob") # Predict probabilities for test set
+glm_probs <- predict(glm_fit, new_data = test_clean, type = "prob") # Predict probabilities for test set
 ```
 
 ```{r}
@@ -1062,7 +1062,7 @@ roc_curve(xgboost_results, truth = ment14d_cat, .pred_High) %>%
 
 roc_auc(xgboost_results, truth = ment14d_cat, .pred_High)
 ```
-
+# Binary Logistic Regression Tuned
 ```{r}
 plan(sequential) # sequential run as opposed to parallel
 
