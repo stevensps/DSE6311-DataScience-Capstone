@@ -102,11 +102,6 @@ ggplot(income_medcost_counts, aes(x = income_labels, y = n, fill = medcost1)) +
 
 ## Table showing breakdown of model performance
 ```{r}
-glimpse(model_metrics)
-unique(model_metrics$.metric)
-str(model_metrics)
-
-
 model_metrics <- bind_rows(
   metrics(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom) %>%
     bind_rows(recall(rf_results_prob, truth = ment14d_cat, estimate = pred_class_custom, event_level = "second") %>% 
